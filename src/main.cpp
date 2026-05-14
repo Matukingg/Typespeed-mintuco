@@ -8,7 +8,7 @@
 #include "graphicMgr.hpp"
 
 enum class Phase {
-    MENU, CATEGORY, FILE_PICK, PREVIEW, PLAYING, RESULTS
+    MENU, CATEGORY, FILE_PICK, PREVIEW, JUMP, PLAYING, RESULTS
 };
 
 int main() {
@@ -47,7 +47,8 @@ int main() {
     double elapsed_sec  = 0.0;
     double live_wpm     = 0.0;
 
-    FileInfo current_file{};
+    FileInfo    current_file{};
+    std::string jump_input;
 
     gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
 
@@ -172,6 +173,43 @@ int main() {
                 } else if (gfx.preview_back_click(mx, my)) {
                     phase = Phase::FILE_PICK;
                     gfx.render_file_pick(bank.files(), file_scroll);
+                } else if (TextBank::is_prose(sel_cat)) {
+                    int cp = bank.current_paragraph(current_file);
+                    int tp = bank.total_paragraphs(current_file);
+                    if (gfx.preview_redo_click(mx, my)) {
+                        bank.redo_last(current_file);
+                        cp = bank.current_paragraph(current_file);
+                        gfx.render_preview(current_file, sel_cat, cp, tp);
+                    } else if (gfx.preview_skip_click(mx, my)) {
+                        bank.skip_paragraph(current_file, tp);
+                        cp = bank.current_paragraph(current_file);
+                        gfx.render_preview(current_file, sel_cat, cp, tp);
+                    } else if (gfx.preview_restart_click(mx, my)) {
+                        bank.reset_progress(current_file);
+                        cp = bank.current_paragraph(current_file);
+                        gfx.render_preview(current_file, sel_cat, cp, tp);
+                    } else if (gfx.preview_jump_click(mx, my)) {
+                        jump_input.clear();
+                        phase = Phase::JUMP;
+                        gfx.render_jump_overlay(cp, tp, jump_input);
+                    }
+                }
+
+            } else if (phase == Phase::JUMP) {
+                int cp = bank.current_paragraph(current_file);
+                int tp = bank.total_paragraphs(current_file);
+                if (gfx.jump_cancel_click(mx, my)) {
+                    phase = Phase::PREVIEW;
+                    gfx.render_preview(current_file, sel_cat, cp, tp);
+                } else if (gfx.jump_confirm_click(mx, my)) {
+                    if (!jump_input.empty()) {
+                        int target = 0;
+                        try { target = std::stoi(jump_input) - 1; } catch (...) {}
+                        bank.jump_to_paragraph(current_file, target);
+                        cp = bank.current_paragraph(current_file);
+                    }
+                    phase = Phase::PREVIEW;
+                    gfx.render_preview(current_file, sel_cat, cp, tp);
                 }
 
             } else if (phase == Phase::RESULTS) {
@@ -220,6 +258,32 @@ int main() {
                     core.set_int("word_target",    word_target);
                     core.save_settings();
                     gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
+                }
+            }
+
+            if (phase == Phase::JUMP) {
+                int cp = bank.current_paragraph(current_file);
+                int tp = bank.total_paragraphs(current_file);
+                if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
+                    phase = Phase::PREVIEW;
+                    gfx.render_preview(current_file, sel_cat, cp, tp);
+                } else if (ev.keyboard.keycode == ALLEGRO_KEY_BACKSPACE) {
+                    if (!jump_input.empty()) jump_input.pop_back();
+                    gfx.render_jump_overlay(cp, tp, jump_input);
+                } else if (ev.keyboard.keycode == ALLEGRO_KEY_ENTER ||
+                           ev.keyboard.keycode == ALLEGRO_KEY_PAD_ENTER) {
+                    if (!jump_input.empty()) {
+                        int target = 0;
+                        try { target = std::stoi(jump_input) - 1; } catch (...) {}
+                        bank.jump_to_paragraph(current_file, target);
+                        cp = bank.current_paragraph(current_file);
+                    }
+                    phase = Phase::PREVIEW;
+                    gfx.render_preview(current_file, sel_cat, cp, tp);
+                } else if (ev.keyboard.unichar >= '0' && ev.keyboard.unichar <= '9'
+                           && (int)jump_input.size() < 4) {
+                    jump_input += (char)ev.keyboard.unichar;
+                    gfx.render_jump_overlay(cp, tp, jump_input);
                 }
             }
 
