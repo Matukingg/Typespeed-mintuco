@@ -41,6 +41,12 @@ public:
     void load_progress(const std::string& filename = "data/progress.txt");
     void save_progress(const std::string& filename = "data/progress.txt") const;
 
+    // Progress navigation (prose only — no-op for code)
+    void reset_progress   (const FileInfo& fi);
+    void redo_last        (const FileInfo& fi);
+    void skip_paragraph   (const FileInfo& fi, int total);
+    void jump_to_paragraph(const FileInfo& fi, int idx);
+
 private:
     std::vector<FileInfo> files_;
 

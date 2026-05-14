@@ -148,3 +148,38 @@ void TextBank::save_progress(const std::string& filename) const {
         f << key << "=" << p.second << "\n";
     }
 }
+
+void TextBank::reset_progress(const FileInfo& fi) {
+    progress_[fi.full_path] = 0;
+    save_progress();
+}
+
+void TextBank::redo_last(const FileInfo& fi) {
+    int& idx = progress_[fi.full_path];
+    if (idx < 0) {
+        // completed — go back to last paragraph
+        auto it = para_cache_.find(fi.full_path);
+        int total = (it != para_cache_.end()) ? (int)it->second.size() : fi.paragraph_count;
+        idx = std::max(0, total - 1);
+    } else {
+        idx = std::max(0, idx - 1);
+    }
+    save_progress();
+}
+
+void TextBank::skip_paragraph(const FileInfo& fi, int total) {
+    int& idx = progress_[fi.full_path];
+    if (idx < 0) return; // already completed
+    idx++;
+    if (idx >= total) idx = -1; // mark completed
+    save_progress();
+}
+
+void TextBank::jump_to_paragraph(const FileInfo& fi, int target_idx) {
+    auto it = para_cache_.find(fi.full_path);
+    int total = (it != para_cache_.end()) ? (int)it->second.size() : fi.paragraph_count;
+    if (target_idx < 0) target_idx = 0;
+    if (target_idx >= total) target_idx = total - 1;
+    progress_[fi.full_path] = target_idx;
+    save_progress();
+}
