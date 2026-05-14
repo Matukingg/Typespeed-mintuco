@@ -187,6 +187,14 @@ int main() {
             }
         }
 
+        // ── F11 fullscreen toggle (all phases) ────────────────────────────────
+        if (ev.type == ALLEGRO_EVENT_KEY_DOWN &&
+            ev.keyboard.keycode == ALLEGRO_KEY_F11) {
+            gfx.toggle_fullscreen();
+            core.set_bool("fullscreen", gfx.is_fullscreen());
+            core.save_settings();
+        }
+
         // ── Keyboard ──────────────────────────────────────────────────────────
         if (ev.type == ALLEGRO_EVENT_KEY_CHAR) {
 
