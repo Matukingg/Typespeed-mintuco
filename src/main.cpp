@@ -119,19 +119,19 @@ int main() {
             continue;
         }
 
-        // ── Display close ─────────────────────────────────────────────────────
+        // ── Display close / resize ───────────────────────────────────────────
         if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE) { running = false; break; }
+
+        if (ev.type == ALLEGRO_EVENT_DISPLAY_RESIZE) {
+            al_acknowledge_resize(gfx.get_display());
+            gfx.update_transform();
+            force_redraw();
+        }
 
         // ── Mouse ─────────────────────────────────────────────────────────────
         if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP && ev.mouse.button == 1) {
-            int mx = ev.mouse.x, my = ev.mouse.y;
-
-            // Maximize button is always available in windowed mode
-            if (gfx.maximize_btn_click(mx, my)) {
-                gfx.toggle_maximized();
-                force_redraw();
-                continue;
-            }
+            int mx, my;
+            gfx.screen_to_game(ev.mouse.x, ev.mouse.y, mx, my);
 
             if (phase == Phase::MENU) {
                 int btn = gfx.menu_click(mx, my);

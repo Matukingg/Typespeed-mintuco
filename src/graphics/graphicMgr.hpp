@@ -64,6 +64,7 @@ public:
     bool results_menu_click(int x, int y)  const;
 
     // ── Fullscreen / window chrome ────────────────────────────────────────────
+    void update_transform(); // recompute centered scale transform — call after resize/mode change
     void toggle_fullscreen();
     void toggle_maximized();
     bool is_fullscreen() const { return fullscreen_; }
@@ -74,11 +75,20 @@ public:
     // Must be called after every render to draw the window chrome overlay
     void draw_window_chrome();
 
+    // Convert raw mouse coordinates to game-space coordinates
+    void screen_to_game(int sx, int sy, int& gx, int& gy) const {
+        gx = (int)(((float)sx - transform_ox_) / transform_scale_);
+        gy = (int)(((float)sy - transform_oy_) / transform_scale_);
+    }
+
 private:
     ALLEGRO_DISPLAY* display_;
     ALLEGRO_FONT*    font_ui_;
     ALLEGRO_FONT*    font_mono_;
-    bool             fullscreen_ = false;
+    bool             fullscreen_       = false;
+    float            transform_ox_     = 0.0f;
+    float            transform_oy_     = 0.0f;
+    float            transform_scale_  = 1.0f;
 
     void draw_toolbar(double elapsed_sec, double wpm, int time_remaining_sec);
     void draw_button(float x, float y, float w, float h,

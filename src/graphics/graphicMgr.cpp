@@ -29,17 +29,42 @@ static constexpr float FILE_X        =  80.0f;
 static constexpr float FILE_W        = Graphic_Manager::WIN_W - 160.0f;
 static constexpr float FILE_START_Y  = 100.0f;
 
+// ── Transform helpers ─────────────────────────────────────────────────────────
+void Graphic_Manager::update_transform() {
+    int dw = al_get_display_width(display_);
+    int dh = al_get_display_height(display_);
+
+    float scale_x = (float)dw / WIN_W;
+    float scale_y = (float)dh / WIN_H;
+    float scale   = std::min(scale_x, scale_y); // letterbox: fit whole game
+
+    float ox = ((float)dw - WIN_W * scale) / 2.0f;
+    float oy = ((float)dh - WIN_H * scale) / 2.0f;
+
+    ALLEGRO_TRANSFORM t;
+    al_identity_transform(&t);
+    al_scale_transform(&t, scale, scale);
+    al_translate_transform(&t, ox, oy);
+    al_use_transform(&t);
+
+    // Store offset so hit-tests can un-transform mouse coords
+    transform_ox_ = ox;
+    transform_oy_ = oy;
+    transform_scale_ = scale;
+}
+
 // ── Constructor / Destructor ──────────────────────────────────────────────────
 Graphic_Manager::Graphic_Manager() {
     Core& core = Core::instance();
     fullscreen_ = core.get_bool("fullscreen", false);
-    if (fullscreen_)
-        al_set_new_display_flags(ALLEGRO_FULLSCREEN_WINDOW);
 
+    al_set_new_display_flags(ALLEGRO_RESIZABLE |
+                             (fullscreen_ ? ALLEGRO_FULLSCREEN_WINDOW : 0));
     display_ = al_create_display(WIN_W, WIN_H);
-    al_set_new_display_flags(0); // reset so future display creations aren't affected
+    al_set_new_display_flags(0);
     if (!display_) std::exit(1);
     al_set_window_title(display_, "Typespeed");
+    update_transform();
 
     font_ui_   = al_load_ttf_font("data/font.ttf",  18, 0);
     font_mono_ = al_load_ttf_font("data/mono.ttf",  16, 0);
@@ -49,9 +74,9 @@ Graphic_Manager::Graphic_Manager() {
 
 void Graphic_Manager::toggle_fullscreen() {
     fullscreen_ = !fullscreen_;
-    al_toggle_display_flag(display_, ALLEGRO_FULLSCREEN_WINDOW, fullscreen_);
-    // Reset the render target — toggling the display flag can invalidate the backbuffer
+    al_set_display_flag(display_, ALLEGRO_FULLSCREEN_WINDOW, fullscreen_);
     al_set_target_backbuffer(display_);
+    update_transform();
 }
 
 void Graphic_Manager::toggle_maximized() {
@@ -60,39 +85,46 @@ void Graphic_Manager::toggle_maximized() {
     bool currently_maximized = (flags & ALLEGRO_MAXIMIZED) != 0;
     al_set_display_flag(display_, ALLEGRO_MAXIMIZED, !currently_maximized);
     al_set_target_backbuffer(display_);
+    update_transform();
 }
 
-// Small □/▣ button top-right, inset from the OS chrome area
-static constexpr float MAX_BTN_W = 28.0f;
-static constexpr float MAX_BTN_H = 20.0f;
-static constexpr float MAX_BTN_X = Graphic_Manager::WIN_W - MAX_BTN_W - 4.0f;
-static constexpr float MAX_BTN_Y = 4.0f;
-
 void Graphic_Manager::draw_window_chrome() {
-    if (fullscreen_) return; // no chrome in fullscreen
-    // Draw maximize/restore button
-    bool maximized = (al_get_display_flags(display_) & ALLEGRO_MAXIMIZED) != 0;
-    // Button background
-    al_draw_filled_rounded_rectangle(MAX_BTN_X, MAX_BTN_Y,
-                                      MAX_BTN_X + MAX_BTN_W, MAX_BTN_Y + MAX_BTN_H,
-                                      3, 3, {0.22f, 0.22f, 0.30f, 1.0f});
-    // Draw a small square icon as primitives (works with any font)
-    float ix = MAX_BTN_X + 8.0f, iy = MAX_BTN_Y + 5.0f, isz = 10.0f;
-    if (maximized) {
-        // Restore icon: two overlapping small squares
-        al_draw_rectangle(ix + 2, iy,     ix + isz + 2, iy + isz - 2, COL_DIM, 1.5f);
-        al_draw_rectangle(ix,     iy + 2, ix + isz,     iy + isz,     COL_DIM, 1.5f);
-    } else {
-        // Maximize icon: one square with thick top border
-        al_draw_rectangle(ix, iy, ix + isz, iy + isz, COL_DIM, 1.5f);
-        al_draw_line(ix, iy, ix + isz, iy, COL_DIM, 3.0f); // thick top = title bar
+    // Draw black letterbox bars so areas outside the 900x600 game area are clean.
+    // We must temporarily reset the transform to draw in screen space.
+    ALLEGRO_TRANSFORM identity;
+    al_identity_transform(&identity);
+    al_use_transform(&identity);
+
+    int dw = al_get_display_width(display_);
+    int dh = al_get_display_height(display_);
+    float scale = transform_scale_;
+    float ox = transform_ox_, oy = transform_oy_;
+    static const ALLEGRO_COLOR BLACK = {0,0,0,1};
+
+    // Left/right bars
+    if (ox > 0) {
+        al_draw_filled_rectangle(0, 0, ox, (float)dh, BLACK);
+        al_draw_filled_rectangle((float)dw - ox, 0, (float)dw, (float)dh, BLACK);
     }
+    // Top/bottom bars
+    if (oy > 0) {
+        al_draw_filled_rectangle(0, 0, (float)dw, oy, BLACK);
+        al_draw_filled_rectangle(0, (float)dh - oy, (float)dw, (float)dh, BLACK);
+    }
+    (void)scale;
+
+    // Restore game transform
+    ALLEGRO_TRANSFORM t;
+    al_identity_transform(&t);
+    al_scale_transform(&t, transform_scale_, transform_scale_);
+    al_translate_transform(&t, transform_ox_, transform_oy_);
+    al_use_transform(&t);
 }
 
 bool Graphic_Manager::maximize_btn_click(int x, int y) const {
-    if (fullscreen_) return false;
-    return (float)x >= MAX_BTN_X && (float)x <= MAX_BTN_X + MAX_BTN_W
-        && (float)y >= MAX_BTN_Y && (float)y <= MAX_BTN_Y + MAX_BTN_H;
+    // No custom maximize button — OS titlebar handles this now
+    (void)x; (void)y;
+    return false;
 }
 
 Graphic_Manager::~Graphic_Manager() {
