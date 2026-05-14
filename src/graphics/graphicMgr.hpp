@@ -39,8 +39,18 @@ public:
     // ── Preview ───────────────────────────────────────────────────────────────
     void render_preview(const FileInfo& fi, Category cat,
                         int current_para, int total_para);
-    bool preview_confirm_click(int x, int y) const;
-    bool preview_back_click(int x, int y)    const;
+    bool preview_confirm_click (int x, int y) const;
+    bool preview_back_click    (int x, int y) const;
+    bool preview_redo_click    (int x, int y) const;
+    bool preview_skip_click    (int x, int y) const;
+    bool preview_restart_click (int x, int y) const;
+    bool preview_jump_click    (int x, int y) const;
+
+    // ── Jump overlay ──────────────────────────────────────────────────────────
+    void render_jump_overlay(int current_para, int total_para,
+                             const std::string& input);
+    bool jump_confirm_click(int x, int y) const;
+    bool jump_cancel_click (int x, int y) const;
 
     // ── Playing ───────────────────────────────────────────────────────────────
     void render_playing(const Game& game, double elapsed_sec,

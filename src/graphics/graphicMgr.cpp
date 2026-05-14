@@ -238,16 +238,100 @@ void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
                   fi.word_count, fi.line_count);
     al_draw_text(font_ui_, COL_TEXT, WIN_W/2, 160, ALLEGRO_ALIGN_CENTRE, buf);
 
-    draw_button(WIN_W/2-160, 260, 140, 44, "Back");
-    draw_button(WIN_W/2+20,  260, 140, 44, "Start!", true);
+    // Back / Start always present
+    draw_button(WIN_W/2-160, 220, 140, 44, "Back");
+    draw_button(WIN_W/2+20,  220, 140, 44, "Start!", true);
+
+    // Prose-only navigation row
+    if (TextBank::is_prose(cat) && total_para > 0) {
+        float bw = 130.0f, bh = 36.0f, gap = 10.0f;
+        float total_w = 4*bw + 3*gap;
+        float bx = ((float)WIN_W - total_w) / 2.0f;
+        float by = 290.0f;
+        draw_button(bx,            by, bw, bh, "Redo Last");
+        draw_button(bx+bw+gap,     by, bw, bh, "Skip");
+        draw_button(bx+2*(bw+gap), by, bw, bh, "Restart");
+        draw_button(bx+3*(bw+gap), by, bw, bh, "Jump To...");
+    }
+
     al_flip_display();
 }
 
 bool Graphic_Manager::preview_confirm_click(int x, int y) const {
-    return x >= WIN_W/2+20 && x <= WIN_W/2+160 && y >= 260 && y <= 304;
+    return x >= WIN_W/2+20 && x <= WIN_W/2+160 && y >= 220 && y <= 264;
 }
 bool Graphic_Manager::preview_back_click(int x, int y) const {
-    return x >= WIN_W/2-160 && x <= WIN_W/2-20 && y >= 260 && y <= 304;
+    return x >= WIN_W/2-160 && x <= WIN_W/2-20 && y >= 220 && y <= 264;
+}
+
+// Shared helper — not exposed in header, used only in this file
+static bool in_rect(float fx, float fy, float bx, float by, float bw, float bh) {
+    return fx >= bx && fx <= bx+bw && fy >= by && fy <= by+bh;
+}
+
+static constexpr float PREV_BTN_W   = 130.0f;
+static constexpr float PREV_BTN_H   =  36.0f;
+static constexpr float PREV_BTN_GAP =  10.0f;
+static constexpr float PREV_BTN_Y   = 290.0f;
+
+static float prev_nav_x(int idx) {
+    float total_w = 4*PREV_BTN_W + 3*PREV_BTN_GAP;
+    float bx = ((float)Graphic_Manager::WIN_W - total_w) / 2.0f;
+    return bx + (float)idx * (PREV_BTN_W + PREV_BTN_GAP);
+}
+
+bool Graphic_Manager::preview_redo_click(int x, int y) const {
+    return in_rect((float)x, (float)y, prev_nav_x(0), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
+}
+bool Graphic_Manager::preview_skip_click(int x, int y) const {
+    return in_rect((float)x, (float)y, prev_nav_x(1), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
+}
+bool Graphic_Manager::preview_restart_click(int x, int y) const {
+    return in_rect((float)x, (float)y, prev_nav_x(2), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
+}
+bool Graphic_Manager::preview_jump_click(int x, int y) const {
+    return in_rect((float)x, (float)y, prev_nav_x(3), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
+}
+
+// ── Jump overlay ─────────────────────────────────────────────────────────────
+static constexpr float JUMP_W = 340.0f;
+static constexpr float JUMP_H = 160.0f;
+static constexpr float JUMP_X = ((float)Graphic_Manager::WIN_W - JUMP_W) / 2.0f;
+static constexpr float JUMP_Y = ((float)Graphic_Manager::WIN_H - JUMP_H) / 2.0f;
+
+void Graphic_Manager::render_jump_overlay(int current_para, int total_para,
+                                           const std::string& input) {
+    // Dim background
+    al_draw_filled_rectangle(0, 0, (float)WIN_W, (float)WIN_H, {0,0,0,0.55f});
+    // Panel
+    al_draw_filled_rounded_rectangle(JUMP_X, JUMP_Y, JUMP_X+JUMP_W, JUMP_Y+JUMP_H,
+                                      8, 8, {0.15f,0.15f,0.20f,1.0f});
+    al_draw_rounded_rectangle(JUMP_X, JUMP_Y, JUMP_X+JUMP_W, JUMP_Y+JUMP_H,
+                               8, 8, COL_DIM, 1.5f);
+
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "Jump to paragraph (1 - %d):", total_para);
+    al_draw_text(font_ui_, COL_TEXT, JUMP_X+JUMP_W/2.0f, JUMP_Y+18.0f,
+                 ALLEGRO_ALIGN_CENTRE, buf);
+
+    // Input box
+    float ix = JUMP_X+20, iy = JUMP_Y+52, iw = JUMP_W-40, ih = 36;
+    al_draw_filled_rounded_rectangle(ix, iy, ix+iw, iy+ih, 4, 4, {0.08f,0.08f,0.10f,1.0f});
+    al_draw_rounded_rectangle(ix, iy, ix+iw, iy+ih, 4, 4, COL_DIM, 1.0f);
+    std::string display = input.empty() ? std::to_string(current_para + 1) : input;
+    al_draw_text(font_ui_, input.empty() ? COL_DIM : COL_WHITE,
+                 ix+iw/2.0f, iy+8.0f, ALLEGRO_ALIGN_CENTRE, display.c_str());
+
+    draw_button(JUMP_X+20,          JUMP_Y+106, 130, 36, "Cancel");
+    draw_button(JUMP_X+JUMP_W-150,  JUMP_Y+106, 130, 36, "Go!", true);
+    al_flip_display();
+}
+
+bool Graphic_Manager::jump_confirm_click(int x, int y) const {
+    return in_rect((float)x, (float)y, JUMP_X+JUMP_W-150, JUMP_Y+106, 130, 36);
+}
+bool Graphic_Manager::jump_cancel_click(int x, int y) const {
+    return in_rect((float)x, (float)y, JUMP_X+20, JUMP_Y+106, 130, 36);
 }
 
 // ── Playing ───────────────────────────────────────────────────────────────────
