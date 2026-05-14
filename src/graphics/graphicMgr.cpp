@@ -1,4 +1,5 @@
 #include "graphicMgr.hpp"
+#include "core.hpp"
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
@@ -30,6 +31,11 @@ static constexpr float FILE_START_Y  = 100.0f;
 
 // ── Constructor / Destructor ──────────────────────────────────────────────────
 Graphic_Manager::Graphic_Manager() {
+    Core& core = Core::instance();
+    fullscreen_ = core.get_bool("fullscreen", false);
+    if (fullscreen_)
+        al_set_new_display_flags(ALLEGRO_FULLSCREEN_WINDOW);
+
     display_ = al_create_display(WIN_W, WIN_H);
     if (!display_) std::exit(1);
     al_set_window_title(display_, "Typespeed");
@@ -38,6 +44,11 @@ Graphic_Manager::Graphic_Manager() {
     font_mono_ = al_load_ttf_font("data/mono.ttf",  16, 0);
     if (!font_ui_)   font_ui_   = al_create_builtin_font();
     if (!font_mono_) font_mono_ = al_create_builtin_font();
+}
+
+void Graphic_Manager::toggle_fullscreen() {
+    fullscreen_ = !fullscreen_;
+    al_toggle_display_flag(display_, ALLEGRO_FULLSCREEN_WINDOW, fullscreen_);
 }
 
 Graphic_Manager::~Graphic_Manager() {

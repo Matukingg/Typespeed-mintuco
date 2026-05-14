@@ -53,10 +53,15 @@ public:
     bool results_again_click(int x, int y) const;
     bool results_menu_click(int x, int y)  const;
 
+    // ── Fullscreen ────────────────────────────────────────────────────────────
+    void toggle_fullscreen();
+    bool is_fullscreen() const { return fullscreen_; }
+
 private:
     ALLEGRO_DISPLAY* display_;
     ALLEGRO_FONT*    font_ui_;
     ALLEGRO_FONT*    font_mono_;
+    bool             fullscreen_ = false;
 
     void draw_toolbar(double elapsed_sec, double wpm, int time_remaining_sec);
     void draw_button(float x, float y, float w, float h,
