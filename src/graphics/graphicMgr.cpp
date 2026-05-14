@@ -52,7 +52,7 @@ void Graphic_Manager::draw_button(float x, float y, float w, float h,
     ALLEGRO_COLOR col = highlighted ? COL_BUTTON_H : COL_BUTTON;
     al_draw_filled_rounded_rectangle(x, y, x+w, y+h, 6, 6, col);
     al_draw_rounded_rectangle(x, y, x+w, y+h, 6, 6, COL_DIM, 1.0f);
-    int fh = al_get_font_line_height(font_ui_);
+    float fh = (float)al_get_font_line_height(font_ui_);
     al_draw_text(font_ui_, COL_WHITE, x + w/2.0f, y + h/2.0f - fh/2.0f,
                  ALLEGRO_ALIGN_CENTRE, label.c_str());
 }
@@ -81,14 +81,13 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
                                    int time_limit_sec, int word_target) {
     al_clear_to_color(COL_BG);
 
-    int fh = al_get_font_line_height(font_ui_);
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 70, ALLEGRO_ALIGN_CENTRE, "TYPESPEED");
 
     const char* mode_labels[] = {"Paragraph", "Time Limit", "Word Count", "Endless"};
     for (int i = 0; i < 4; i++) {
         bool hi = ((int)current_mode == i);
         draw_button(MENU_BTN_X,
-                    MENU_START_Y + i*(MENU_BTN_H + MENU_BTN_GAP),
+                    MENU_START_Y + (float)i*(MENU_BTN_H + MENU_BTN_GAP),
                     MENU_BTN_W, MENU_BTN_H, mode_labels[i], hi);
     }
 
@@ -117,18 +116,17 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
 }
 
 int Graphic_Manager::menu_click(int x, int y) const {
+    float fx = (float)x, fy = (float)y;
     for (int i = 0; i < 4; i++) {
-        float bx = MENU_BTN_X, by = MENU_START_Y + i*(MENU_BTN_H + MENU_BTN_GAP);
-        if (x >= bx && x <= bx+MENU_BTN_W && y >= by && y <= by+MENU_BTN_H) return i;
+        float bx = MENU_BTN_X, by = MENU_START_Y + (float)i*(MENU_BTN_H + MENU_BTN_GAP);
+        if (fx >= bx && fx <= bx+MENU_BTN_W && fy >= by && fy <= by+MENU_BTN_H) return i;
     }
     float ey = MENU_START_Y + 4*(MENU_BTN_H + MENU_BTN_GAP) + 10;
-    if (x >= MENU_BTN_X && x <= MENU_BTN_X+140 && y >= ey && y <= ey+36) return 10;
-    if (x >= MENU_BTN_X+160 && x <= MENU_BTN_X+300 && y >= ey && y <= ey+36) return 11;
-    // Start button = 30
+    if (fx >= MENU_BTN_X && fx <= MENU_BTN_X+140 && fy >= ey && fy <= ey+36) return 10;
+    if (fx >= MENU_BTN_X+160 && fx <= MENU_BTN_X+300 && fy >= ey && fy <= ey+36) return 11;
     float sy = ey + 80;
-    if (x >= MENU_BTN_X && x <= MENU_BTN_X+MENU_BTN_W && y >= sy && y <= sy+44) return 30;
-    // Global Stats = 20
-    if (x >= WIN_W-160 && x <= WIN_W-20 && y >= WIN_H-60 && y <= WIN_H-24) return 20;
+    if (fx >= MENU_BTN_X && fx <= MENU_BTN_X+MENU_BTN_W && fy >= sy && fy <= sy+44) return 30;
+    if (fx >= (float)(WIN_W-160) && fx <= (float)(WIN_W-20) && fy >= (float)(WIN_H-60) && fy <= (float)(WIN_H-24)) return 20;
     return -1;
 }
 
@@ -143,16 +141,17 @@ void Graphic_Manager::render_category(Category current) {
     for (int i = 0; i < 7; i++) {
         bool hi = ((int)current == i);
         draw_button(MENU_BTN_X,
-                    120.0f + i*(MENU_BTN_H + MENU_BTN_GAP),
+                    120.0f + (float)i*(MENU_BTN_H + MENU_BTN_GAP),
                     MENU_BTN_W, MENU_BTN_H, CAT_LABELS[i], hi);
     }
     al_flip_display();
 }
 
 int Graphic_Manager::category_click(int x, int y) const {
+    float fx = (float)x, fy = (float)y;
     for (int i = 0; i < 7; i++) {
-        float bx = MENU_BTN_X, by = 120.0f + i*(MENU_BTN_H + MENU_BTN_GAP);
-        if (x >= bx && x <= bx+MENU_BTN_W && y >= by && y <= by+MENU_BTN_H) return i;
+        float bx = MENU_BTN_X, by = 120.0f + (float)i*(MENU_BTN_H + MENU_BTN_GAP);
+        if (fx >= bx && fx <= bx+MENU_BTN_W && fy >= by && fy <= by+MENU_BTN_H) return i;
     }
     return -1;
 }
@@ -172,10 +171,10 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
 
     int end = std::min(scroll_offset + FILES_VISIBLE, (int)files.size());
     for (int i = scroll_offset; i < end; i++) {
-        float by = FILE_START_Y + (i - scroll_offset)*FILE_ROW_H;
+        float by = FILE_START_Y + (float)(i - scroll_offset)*FILE_ROW_H;
         al_draw_filled_rounded_rectangle(FILE_X, by, FILE_X+FILE_W, by+FILE_ROW_H-4,
                                           4, 4, COL_BUTTON);
-        const auto& fi = files[i];
+        const auto& fi = files[(size_t)i];
         al_draw_text(font_ui_, COL_WHITE, FILE_X+12, by+12, 0, fi.filename.c_str());
         char meta[64];
         std::snprintf(meta, sizeof(meta), "%d words  %d lines",
@@ -193,9 +192,10 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
 }
 
 int Graphic_Manager::file_click(int x, int y, int scroll_offset) const {
+    float fx = (float)x, fy = (float)y;
     for (int i = 0; i < FILES_VISIBLE; i++) {
-        float by = FILE_START_Y + i*FILE_ROW_H;
-        if (x >= FILE_X && x <= FILE_X+FILE_W && y >= by && y <= by+FILE_ROW_H-4)
+        float by = FILE_START_Y + (float)i*FILE_ROW_H;
+        if (fx >= FILE_X && fx <= FILE_X+FILE_W && fy >= by && fy <= by+FILE_ROW_H-4)
             return scroll_offset + i;
     }
     return -1;
@@ -205,7 +205,7 @@ bool Graphic_Manager::file_scroll_up_click(int x, int y) const {
     return x >= WIN_W/2-60 && x <= WIN_W/2+60 && y >= WIN_H-70 && y <= WIN_H-36;
 }
 bool Graphic_Manager::file_scroll_down_click(int x, int y) const {
-    return x >= WIN_W/2-60 && x <= WIN_W/2+60 && y >= WIN_H-30 && y <= WIN_H+4;
+    return x >= WIN_W/2-60 && x <= WIN_W/2+60 && y >= WIN_H-30 && y <= WIN_H-4;
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────
@@ -243,9 +243,8 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
                                     float max_w, bool cursor_visible) {
     const auto& chars = game.char_states();
     int cursor = game.cursor_pos();
-    int fh = al_get_font_line_height(font_mono_);
-    // Use a fixed character width for monospace approximation
-    int fw = al_get_text_width(font_mono_, "M");
+    float fh = (float)al_get_font_line_height(font_mono_);
+    float fw = (float)al_get_text_width(font_mono_, "M");
 
     float cx = x, cy = y;
     for (int i = 0; i <= (int)chars.size(); i++) {
@@ -253,11 +252,12 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
         if (i == cursor && cursor_visible)
             al_draw_filled_rectangle(cx, cy, cx + 2.0f, cy + fh, COL_CURSOR);
 
+
         if (i == (int)chars.size()) break;
 
-        char c = chars[i].ch;
+        char c = chars[(size_t)i].ch;
         ALLEGRO_COLOR col;
-        switch (chars[i].status) {
+        switch (chars[(size_t)i].status) {
             case CharState::Status::Correct: col = COL_CORRECT; break;
             case CharState::Status::Wrong:   col = COL_WRONG;   break;
             default:                         col = COL_TEXT;    break;
@@ -313,8 +313,8 @@ void Graphic_Manager::render_results(const SessionResult& r) {
         if (max_t <= 0) max_t = 1;
 
         for (int i = 1; i < (int)r.wpm_samples.size(); i++) {
-            auto& a = r.wpm_samples[i-1];
-            auto& b = r.wpm_samples[i];
+            auto& a = r.wpm_samples[(size_t)(i-1)];
+            auto& b = r.wpm_samples[(size_t)i];
             float x1 = gx + (float)(a.elapsed_sec / max_t) * gw;
             float y1 = gy + gh - (float)(a.wpm / max_wpm) * gh;
             float x2 = gx + (float)(b.elapsed_sec / max_t) * gw;

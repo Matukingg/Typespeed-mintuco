@@ -116,7 +116,7 @@ std::string TextBank::load_passage(const FileInfo& fi, Category cat) {
         std::mt19937 rng(std::random_device{}());
         idx = std::uniform_int_distribution<int>(0, (int)paras.size()-1)(rng);
     }
-    std::string passage = paras[idx];
+    std::string passage = paras[(size_t)idx];
     idx++;
     if (idx >= (int)paras.size()) idx = -1; // mark completed
     save_progress();

@@ -1,4 +1,5 @@
 #include "game.hpp"
+#include <algorithm>
 
 void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
                  int time_limit_sec, int word_target) {
@@ -18,22 +19,26 @@ bool Game::on_key(int unichar) {
     if (cursor_ >= (int)chars_.size()) return false;
     if (unichar < 32) return false;
 
-    char expected = chars_[cursor_].ch;
+    auto ci = (size_t)cursor_;
+    char expected = chars_[ci].ch;
     bool correct  = ((char)unichar == expected);
 
     if (!correct && emode_ == ErrorMode::Strict) {
-        chars_[cursor_].status = CharState::Status::Wrong;
+        // Only count one error per character position — don't penalise key-hammering
+        if (chars_[ci].status != CharState::Status::Wrong) {
+            stats_.record_error();
+        }
+        chars_[ci].status = CharState::Status::Wrong;
         has_error_ = true;
-        stats_.record_error();
         return true;
     }
 
     if (correct) {
-        chars_[cursor_].status = CharState::Status::Correct;
+        chars_[ci].status = CharState::Status::Correct;
         stats_.record_correct();
         has_error_ = false;
     } else {
-        chars_[cursor_].status = CharState::Status::Wrong;
+        chars_[ci].status = CharState::Status::Wrong;
         stats_.record_error();
     }
     cursor_++;
@@ -43,7 +48,7 @@ bool Game::on_key(int unichar) {
 bool Game::on_backspace() {
     if (cursor_ <= 0) return false;
     cursor_--;
-    chars_[cursor_].status = CharState::Status::Neutral;
+    chars_[(size_t)cursor_].status = CharState::Status::Neutral;
     has_error_ = false;
     return true;
 }
@@ -60,11 +65,14 @@ bool Game::is_finished() const {
 }
 
 int Game::words_typed() const {
+    // Count completed words = number of spaces passed through + 1 (if any chars typed).
+    // Using spaces regardless of correct/wrong so lenient mode word count works consistently.
+    if (cursor_ == 0) return 0;
     int spaces = 0;
-    for (int i = 0; i < cursor_ && i < (int)chars_.size(); i++)
-        if (chars_[i].ch == ' ' && chars_[i].status == CharState::Status::Correct)
-            spaces++;
-    return spaces;
+    int limit = std::min(cursor_, (int)chars_.size());
+    for (int i = 0; i < limit; i++)
+        if (chars_[(size_t)i].ch == ' ') spaces++;
+    return spaces + 1;
 }
 
 double Game::live_wpm(double elapsed_sec) const {

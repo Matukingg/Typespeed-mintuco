@@ -28,7 +28,6 @@ int main() {
     ErrorMode sel_emode = core.get_bool("strict", true)
                               ? ErrorMode::Strict : ErrorMode::Lenient;
     Category  sel_cat   = (Category)core.get_int("cat_idx", 0);
-    int       sel_file  = 0;
     int       file_scroll = 0;
 
     int time_limit_sec = core.get_int("time_limit_sec", 60);
@@ -72,6 +71,7 @@ int main() {
 
                 if (sel_mode == RoundMode::TimeLimit &&
                     elapsed_sec >= time_limit_sec) {
+                    al_stop_timer(timer);
                     last_result = game.finish(
                         TextBank::category_folder(sel_cat),
                         current_file.filename,
@@ -125,7 +125,7 @@ int main() {
                     sel_cat = (Category)c;
                     core.set_int("cat_idx", c); core.save_settings();
                     bank.scan(sel_cat);
-                    file_scroll = 0; sel_file = 0;
+                    file_scroll = 0;
                     phase = Phase::FILE_PICK;
                     gfx.render_file_pick(bank.files(), file_scroll);
                 }
@@ -141,8 +141,7 @@ int main() {
                 } else {
                     int fi = gfx.file_click(mx, my, file_scroll);
                     if (fi >= 0 && fi < (int)bank.files().size()) {
-                        sel_file     = fi;
-                        current_file = bank.files()[fi];
+                        current_file = bank.files()[(size_t)fi];
                         int cp = bank.current_paragraph(current_file);
                         int tp = bank.total_paragraphs(current_file);
                         phase = Phase::PREVIEW;
@@ -164,6 +163,7 @@ int main() {
                         live_wpm     = 0.0;
                         sample_ticks = 0;
                         cursor_vis   = true;
+                        al_start_timer(timer);
                         phase = Phase::PLAYING;
                         gfx.render_playing(game, 0,
                             sel_mode == RoundMode::TimeLimit ? time_limit_sec : -1,
@@ -217,6 +217,7 @@ int main() {
 
             if (phase == Phase::PLAYING) {
                 if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
+                    al_stop_timer(timer);
                     last_result = game.finish(
                         TextBank::category_folder(sel_cat),
                         current_file.filename,
@@ -244,8 +245,9 @@ int main() {
                                 bank.scan(sel_cat);
                                 if (!bank.files().empty()) {
                                     std::mt19937 rng(std::random_device{}());
-                                    int idx = rng() % bank.files().size();
-                                    current_file = bank.files()[idx];
+                                    std::uniform_int_distribution<int> dist(
+                                        0, (int)bank.files().size() - 1);
+                                    current_file = bank.files()[(size_t)dist(rng)];
                                     next = bank.load_passage(current_file, sel_cat);
                                 }
                             }
@@ -253,6 +255,7 @@ int main() {
                                 game.start(next, sel_mode, sel_emode,
                                            time_limit_sec, word_target);
                         } else {
+                            al_stop_timer(timer);
                             last_result = game.finish(
                                 TextBank::category_folder(sel_cat),
                                 current_file.filename,
