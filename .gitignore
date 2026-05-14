@@ -1,0 +1,7 @@
+build/
+data/progress.txt
+data/history.txt
+data/keylog.txt
+settings.txt
+CLAUDE.md
+.claude/
