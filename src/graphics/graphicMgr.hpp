@@ -94,6 +94,7 @@ private:
     float            transform_oy_     = 0.0f;
     float            transform_scale_  = 1.0f;
 
+    void clear_full(); // clear entire display to COL_BG, preserve game transform
     void draw_toolbar(double elapsed_sec, double wpm, int time_remaining_sec);
     void draw_button(float x, float y, float w, float h,
                      const std::string& label, bool highlighted = false);

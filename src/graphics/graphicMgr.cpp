@@ -30,6 +30,22 @@ static constexpr float FILE_W        = Graphic_Manager::WIN_W - 160.0f;
 static constexpr float FILE_START_Y  = 100.0f;
 
 // ── Transform helpers ─────────────────────────────────────────────────────────
+
+// Clear the entire display (in screen space) to COL_BG, then restore the game transform.
+// This eliminates letterbox bars — the background colour fills the whole window.
+void Graphic_Manager::clear_full() {
+    ALLEGRO_TRANSFORM identity;
+    al_identity_transform(&identity);
+    al_use_transform(&identity);
+    clear_full();
+    // Restore game transform
+    ALLEGRO_TRANSFORM t;
+    al_identity_transform(&t);
+    al_scale_transform(&t, transform_scale_, transform_scale_);
+    al_translate_transform(&t, transform_ox_, transform_oy_);
+    al_use_transform(&t);
+}
+
 void Graphic_Manager::update_transform() {
     int dw = al_get_display_width(display_);
     int dh = al_get_display_height(display_);
@@ -99,36 +115,7 @@ void Graphic_Manager::toggle_maximized() {
 }
 
 void Graphic_Manager::draw_window_chrome() {
-    // Draw black letterbox bars so areas outside the 900x600 game area are clean.
-    // We must temporarily reset the transform to draw in screen space.
-    ALLEGRO_TRANSFORM identity;
-    al_identity_transform(&identity);
-    al_use_transform(&identity);
-
-    int dw = al_get_display_width(display_);
-    int dh = al_get_display_height(display_);
-    float scale = transform_scale_;
-    float ox = transform_ox_, oy = transform_oy_;
-    static const ALLEGRO_COLOR BLACK = {0,0,0,1};
-
-    // Left/right bars
-    if (ox > 0) {
-        al_draw_filled_rectangle(0, 0, ox, (float)dh, BLACK);
-        al_draw_filled_rectangle((float)dw - ox, 0, (float)dw, (float)dh, BLACK);
-    }
-    // Top/bottom bars
-    if (oy > 0) {
-        al_draw_filled_rectangle(0, 0, (float)dw, oy, BLACK);
-        al_draw_filled_rectangle(0, (float)dh - oy, (float)dw, (float)dh, BLACK);
-    }
-    (void)scale;
-
-    // Restore game transform
-    ALLEGRO_TRANSFORM t;
-    al_identity_transform(&t);
-    al_scale_transform(&t, transform_scale_, transform_scale_);
-    al_translate_transform(&t, transform_ox_, transform_oy_);
-    al_use_transform(&t);
+    // No-op — background is drawn full-display by clear_full(), no bars needed.
 }
 
 bool Graphic_Manager::maximize_btn_click(int x, int y) const {
@@ -176,7 +163,7 @@ void Graphic_Manager::draw_toolbar(double elapsed_sec, double wpm,
 // ── Menu ──────────────────────────────────────────────────────────────────────
 void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emode,
                                    int time_limit_sec, int word_target) {
-    al_clear_to_color(COL_BG);
+    clear_full();
 
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 70, ALLEGRO_ALIGN_CENTRE, "TYPESPEED");
 
@@ -234,7 +221,7 @@ static const char* CAT_LABELS[] = {
 };
 
 void Graphic_Manager::render_category(Category current) {
-    al_clear_to_color(COL_BG);
+    clear_full();
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 60, ALLEGRO_ALIGN_CENTRE, "Select Category");
     for (int i = 0; i < 7; i++) {
         bool hi = ((int)current == i);
@@ -258,7 +245,7 @@ int Graphic_Manager::category_click(int x, int y) const {
 // ── File Pick ─────────────────────────────────────────────────────────────────
 void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
                                         int scroll_offset) {
-    al_clear_to_color(COL_BG);
+    clear_full();
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 50, ALLEGRO_ALIGN_CENTRE, "Select File");
 
     if (files.empty()) {
@@ -312,7 +299,7 @@ bool Graphic_Manager::file_scroll_down_click(int x, int y) const {
 // ── Preview ───────────────────────────────────────────────────────────────────
 void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
                                       int current_para, int total_para) {
-    al_clear_to_color(COL_BG);
+    clear_full();
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 80, ALLEGRO_ALIGN_CENTRE,
                  fi.filename.c_str());
     char buf[128];
@@ -467,7 +454,7 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
 void Graphic_Manager::render_playing(const Game& game, double elapsed_sec,
                                       int time_remaining_sec, double live_wpm,
                                       bool cursor_visible) {
-    al_clear_to_color(COL_BG);
+    clear_full();
     draw_toolbar(elapsed_sec, live_wpm, time_remaining_sec);
     draw_passage(game, 60, TOOLBAR_H + 30, WIN_W - 120, cursor_visible);
     draw_window_chrome();
@@ -476,7 +463,7 @@ void Graphic_Manager::render_playing(const Game& game, double elapsed_sec,
 
 // ── Results ───────────────────────────────────────────────────────────────────
 void Graphic_Manager::render_results(const SessionResult& r) {
-    al_clear_to_color(COL_BG);
+    clear_full();
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 30, ALLEGRO_ALIGN_CENTRE, "Results");
 
     char buf[128];
@@ -532,7 +519,7 @@ bool Graphic_Manager::results_menu_click(int x, int y) const {
 
 // ── Global Stats (Plan B placeholder) ────────────────────────────────────────
 void Graphic_Manager::render_global_stats() {
-    al_clear_to_color(COL_BG);
+    clear_full();
     al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 60,
                  ALLEGRO_ALIGN_CENTRE, "Global Stats");
     al_draw_text(font_ui_, COL_DIM, WIN_W/2, 160,
