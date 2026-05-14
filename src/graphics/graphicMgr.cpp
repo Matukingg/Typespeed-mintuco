@@ -37,6 +37,7 @@ Graphic_Manager::Graphic_Manager() {
         al_set_new_display_flags(ALLEGRO_FULLSCREEN_WINDOW);
 
     display_ = al_create_display(WIN_W, WIN_H);
+    al_set_new_display_flags(0); // reset so future display creations aren't affected
     if (!display_) std::exit(1);
     al_set_window_title(display_, "Typespeed");
 
