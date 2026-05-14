@@ -1,0 +1,48 @@
+def fibonacci(n):
+    if n <= 1:
+        return n
+    a, b = 0, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b
+
+
+def is_prime(n):
+    if n < 2:
+        return False
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+
+
+def sieve_of_eratosthenes(limit):
+    is_prime_arr = [True] * (limit + 1)
+    is_prime_arr[0] = is_prime_arr[1] = False
+    for i in range(2, int(limit**0.5) + 1):
+        if is_prime_arr[i]:
+            for j in range(i * i, limit + 1, i):
+                is_prime_arr[j] = False
+    return [x for x in range(limit + 1) if is_prime_arr[x]]
+
+
+def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+
+
+if __name__ == "__main__":
+    fibs = [fibonacci(i) for i in range(10)]
+    primes = sieve_of_eratosthenes(50)
+    print(f"Fibonacci: {fibs}")
+    print(f"Primes up to 50: {primes}")
+    idx = binary_search(primes, 17)
+    print(f"Index of 17 in primes: {idx}")

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample Page</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; line-height: 1.6; padding: 2rem; }
+        h1 { color: #333; margin-bottom: 1rem; }
+        p  { color: #555; margin-bottom: 0.75rem; }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello, World!</h1>
+    <p>This is a sample HTML file for typing practice.</p>
+    <div class="card">
+        <h2>Features</h2>
+        <ul>
+            <li>Semantic HTML5 structure</li>
+            <li>Basic CSS styling</li>
+            <li>Responsive viewport meta tag</li>
+        </ul>
+    </div>
+    <form action="/submit" method="POST">
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="email" name="email" placeholder="Email" required>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

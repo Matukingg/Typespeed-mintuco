@@ -1,0 +1,52 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <string>
+
+std::vector<int> sieve(int n) {
+    std::vector<bool> is_prime(n + 1, true);
+    std::vector<int>  primes;
+    is_prime[0] = is_prime[1] = false;
+    for (int i = 2; i <= n; i++) {
+        if (!is_prime[i]) continue;
+        primes.push_back(i);
+        for (int j = 2 * i; j <= n; j += i)
+            is_prime[j] = false;
+    }
+    return primes;
+}
+
+int binary_search(const std::vector<int>& arr, int target) {
+    int left = 0, right = (int)arr.size() - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] == target)  return mid;
+        if (arr[mid] < target)   left  = mid + 1;
+        else                     right = mid - 1;
+    }
+    return -1;
+}
+
+struct Point {
+    double x, y;
+    double distance_to(const Point& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+};
+
+int main() {
+    auto primes = sieve(100);
+    std::cout << "Primes up to 100:\n";
+    for (int p : primes) std::cout << p << " ";
+    std::cout << "\n";
+
+    int idx = binary_search(primes, 37);
+    std::cout << "Index of 37: " << idx << "\n";
+
+    Point a{0.0, 0.0}, b{3.0, 4.0};
+    std::cout << "Distance: " << a.distance_to(b) << "\n";
+
+    return 0;
+}

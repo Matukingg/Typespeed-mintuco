@@ -1,0 +1,39 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title{Sample Document}
+\author{Author Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+The quadratic formula solves $ax^2 + bx + c = 0$ and is given by:
+\begin{equation}
+    x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+\end{equation}
+
+\section{Matrices}
+A rotation matrix in 2D is:
+\begin{equation}
+    R(\theta) = \begin{pmatrix}
+        \cos\theta & -\sin\theta \\
+        \sin\theta &  \cos\theta
+    \end{pmatrix}
+\end{equation}
+
+\section{Summations}
+The sum of the first $n$ natural numbers:
+\begin{equation}
+    \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+\end{equation}
+
+\section{Conclusion}
+This document demonstrates basic \LaTeX{} typesetting including
+equations, matrices, and common mathematical notation.
+
+\end{document}
