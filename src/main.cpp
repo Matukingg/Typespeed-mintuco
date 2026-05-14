@@ -8,7 +8,7 @@
 #include "graphicMgr.hpp"
 
 enum class Phase {
-    MENU, CATEGORY, FILE_PICK, PREVIEW, JUMP, PLAYING, RESULTS
+    MENU, CATEGORY, FILE_PICK, PREVIEW, JUMP, PLAYING, RESULTS, GLOBAL_STATS
 };
 
 int main() {
@@ -76,6 +76,8 @@ int main() {
                     live_wpm, cursor_vis); break;
             case Phase::RESULTS:
                 gfx.render_results(last_result); break;
+            case Phase::GLOBAL_STATS:
+                gfx.render_global_stats(); break;
         }
     };
 
@@ -153,7 +155,8 @@ int main() {
                     phase = Phase::CATEGORY;
                     gfx.render_category(sel_cat);
                 } else if (btn == 20) {
-                    // Global Stats placeholder — Plan B
+                    phase = Phase::GLOBAL_STATS;
+                    gfx.render_global_stats();
                 }
 
             } else if (phase == Phase::CATEGORY) {
@@ -246,6 +249,12 @@ int main() {
                     }
                     phase = Phase::PREVIEW;
                     gfx.render_preview(current_file, sel_cat, cp, tp);
+                }
+
+            } else if (phase == Phase::GLOBAL_STATS) {
+                if (gfx.global_stats_back_click(mx, my)) {
+                    phase = Phase::MENU;
+                    gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
                 }
 
             } else if (phase == Phase::RESULTS) {

@@ -13,11 +13,25 @@ void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
     word_target_    = word_target;
     has_error_      = false;
     stats_.reset();
+    // Skip any leading newlines
+    while (cursor_ < (int)chars_.size() && chars_[(size_t)cursor_].ch == '\n') {
+        chars_[(size_t)cursor_].status = CharState::Status::Correct;
+        cursor_++;
+    }
 }
 
 bool Game::on_key(int unichar) {
     if (cursor_ >= (int)chars_.size()) return false;
     if (unichar < 32) return false;
+
+    // Auto-advance past newline characters — user can't type them,
+    // and pressing Enter/Return would send unichar 13 which is < 32.
+    // We skip them silently so the cursor lands on a typeable character.
+    while (cursor_ < (int)chars_.size() && chars_[(size_t)cursor_].ch == '\n') {
+        chars_[(size_t)cursor_].status = CharState::Status::Correct;
+        cursor_++;
+    }
+    if (cursor_ >= (int)chars_.size()) return false;
 
     auto ci = (size_t)cursor_;
     char expected = chars_[ci].ch;

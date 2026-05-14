@@ -63,6 +63,10 @@ public:
     bool results_again_click(int x, int y) const;
     bool results_menu_click(int x, int y)  const;
 
+    // ── Global Stats ──────────────────────────────────────────────────────────
+    void render_global_stats();
+    bool global_stats_back_click(int x, int y) const;
+
     // ── Fullscreen / window chrome ────────────────────────────────────────────
     void update_transform(); // recompute centered scale transform — call after resize/mode change
     void toggle_fullscreen();

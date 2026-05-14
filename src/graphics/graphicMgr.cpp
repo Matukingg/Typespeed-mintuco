@@ -66,10 +66,20 @@ Graphic_Manager::Graphic_Manager() {
     al_set_window_title(display_, "Typespeed");
     update_transform();
 
-    font_ui_   = al_load_ttf_font("data/font.ttf",  18, 0);
-    font_mono_ = al_load_ttf_font("data/mono.ttf",  16, 0);
-    if (!font_ui_)   font_ui_   = al_create_builtin_font();
-    if (!font_mono_) font_mono_ = al_create_builtin_font();
+    // Bundled fonts take priority; fall back to system Ubuntu fonts, then builtin
+    font_ui_ = al_load_ttf_font("data/font.ttf", 18, 0);
+    if (!font_ui_)
+        font_ui_ = al_load_ttf_font(
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", 18, 0);
+    if (!font_ui_)
+        font_ui_ = al_create_builtin_font();
+
+    font_mono_ = al_load_ttf_font("data/mono.ttf", 16, 0);
+    if (!font_mono_)
+        font_mono_ = al_load_ttf_font(
+            "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", 16, 0);
+    if (!font_mono_)
+        font_mono_ = al_create_builtin_font();
 }
 
 void Graphic_Manager::toggle_fullscreen() {
@@ -518,4 +528,24 @@ bool Graphic_Manager::results_again_click(int x, int y) const {
 }
 bool Graphic_Manager::results_menu_click(int x, int y) const {
     return x >= WIN_W/2+20 && x <= WIN_W/2+160 && y >= WIN_H-60 && y <= WIN_H-20;
+}
+
+// ── Global Stats (Plan B placeholder) ────────────────────────────────────────
+void Graphic_Manager::render_global_stats() {
+    al_clear_to_color(COL_BG);
+    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 60,
+                 ALLEGRO_ALIGN_CENTRE, "Global Stats");
+    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 160,
+                 ALLEGRO_ALIGN_CENTRE, "Coming soon — Plan B.");
+    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 200,
+                 ALLEGRO_ALIGN_CENTRE, "Keyboard heatmap, bigrams, WPM trends,");
+    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 230,
+                 ALLEGRO_ALIGN_CENTRE, "badges, lifetime totals and more.");
+    draw_button(WIN_W/2-70, WIN_H-80, 140, 44, "Back");
+    draw_window_chrome();
+    al_flip_display();
+}
+
+bool Graphic_Manager::global_stats_back_click(int x, int y) const {
+    return x >= WIN_W/2-70 && x <= WIN_W/2+70 && y >= WIN_H-80 && y <= WIN_H-36;
 }
