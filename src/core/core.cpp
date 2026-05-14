@@ -9,6 +9,7 @@ Core::Core() {
     if (!al_init_font_addon())       { std::cerr << "font addon failed\n";    std::exit(1); }
     if (!al_init_ttf_addon())        { std::cerr << "ttf addon failed\n";     std::exit(1); }
     if (!al_install_keyboard())      { std::cerr << "keyboard failed\n";      std::exit(1); }
+    if (!al_install_mouse())         { std::cerr << "mouse failed\n";         std::exit(1); }
 }
 
 Core::~Core() {
@@ -17,6 +18,7 @@ Core::~Core() {
     al_shutdown_image_addon();
     al_shutdown_primitives_addon();
     al_uninstall_keyboard();
+    al_uninstall_mouse();
     al_uninstall_system();
 }
 
