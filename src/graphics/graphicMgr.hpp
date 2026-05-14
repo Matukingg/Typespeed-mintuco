@@ -63,9 +63,16 @@ public:
     bool results_again_click(int x, int y) const;
     bool results_menu_click(int x, int y)  const;
 
-    // ── Fullscreen ────────────────────────────────────────────────────────────
+    // ── Fullscreen / window chrome ────────────────────────────────────────────
     void toggle_fullscreen();
+    void toggle_maximized();
     bool is_fullscreen() const { return fullscreen_; }
+
+    // Returns true if the click hit the maximize button (top-right chrome)
+    bool maximize_btn_click(int x, int y) const;
+
+    // Must be called after every render to draw the window chrome overlay
+    void draw_window_chrome();
 
 private:
     ALLEGRO_DISPLAY* display_;

@@ -50,6 +50,35 @@ int main() {
     FileInfo    current_file{};
     std::string jump_input;
 
+    // Re-render the current phase — called after window mode changes
+    auto force_redraw = [&]() {
+        switch (phase) {
+            case Phase::MENU:
+                gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target); break;
+            case Phase::CATEGORY:
+                gfx.render_category(sel_cat); break;
+            case Phase::FILE_PICK:
+                gfx.render_file_pick(bank.files(), file_scroll); break;
+            case Phase::PREVIEW: {
+                int cp = bank.current_paragraph(current_file);
+                int tp = bank.total_paragraphs(current_file);
+                gfx.render_preview(current_file, sel_cat, cp, tp); break;
+            }
+            case Phase::JUMP: {
+                int cp = bank.current_paragraph(current_file);
+                int tp = bank.total_paragraphs(current_file);
+                gfx.render_jump_overlay(cp, tp, jump_input); break;
+            }
+            case Phase::PLAYING:
+                gfx.render_playing(game, elapsed_sec,
+                    sel_mode == RoundMode::TimeLimit
+                        ? std::max(0, (int)(time_limit_sec - elapsed_sec)) : -1,
+                    live_wpm, cursor_vis); break;
+            case Phase::RESULTS:
+                gfx.render_results(last_result); break;
+        }
+    };
+
     gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
 
     while (running) {
@@ -96,6 +125,13 @@ int main() {
         // ── Mouse ─────────────────────────────────────────────────────────────
         if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_UP && ev.mouse.button == 1) {
             int mx = ev.mouse.x, my = ev.mouse.y;
+
+            // Maximize button is always available in windowed mode
+            if (gfx.maximize_btn_click(mx, my)) {
+                gfx.toggle_maximized();
+                force_redraw();
+                continue;
+            }
 
             if (phase == Phase::MENU) {
                 int btn = gfx.menu_click(mx, my);
@@ -231,6 +267,7 @@ int main() {
             gfx.toggle_fullscreen();
             core.set_bool("fullscreen", gfx.is_fullscreen());
             core.save_settings();
+            force_redraw();
         }
 
         // ── Keyboard ──────────────────────────────────────────────────────────

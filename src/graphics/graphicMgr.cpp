@@ -50,6 +50,49 @@ Graphic_Manager::Graphic_Manager() {
 void Graphic_Manager::toggle_fullscreen() {
     fullscreen_ = !fullscreen_;
     al_toggle_display_flag(display_, ALLEGRO_FULLSCREEN_WINDOW, fullscreen_);
+    // Reset the render target — toggling the display flag can invalidate the backbuffer
+    al_set_target_backbuffer(display_);
+}
+
+void Graphic_Manager::toggle_maximized() {
+    if (fullscreen_) return;
+    int flags = al_get_display_flags(display_);
+    bool currently_maximized = (flags & ALLEGRO_MAXIMIZED) != 0;
+    al_set_display_flag(display_, ALLEGRO_MAXIMIZED, !currently_maximized);
+    al_set_target_backbuffer(display_);
+}
+
+// Small □/▣ button top-right, inset from the OS chrome area
+static constexpr float MAX_BTN_W = 28.0f;
+static constexpr float MAX_BTN_H = 20.0f;
+static constexpr float MAX_BTN_X = Graphic_Manager::WIN_W - MAX_BTN_W - 4.0f;
+static constexpr float MAX_BTN_Y = 4.0f;
+
+void Graphic_Manager::draw_window_chrome() {
+    if (fullscreen_) return; // no chrome in fullscreen
+    // Draw maximize/restore button
+    bool maximized = (al_get_display_flags(display_) & ALLEGRO_MAXIMIZED) != 0;
+    // Button background
+    al_draw_filled_rounded_rectangle(MAX_BTN_X, MAX_BTN_Y,
+                                      MAX_BTN_X + MAX_BTN_W, MAX_BTN_Y + MAX_BTN_H,
+                                      3, 3, {0.22f, 0.22f, 0.30f, 1.0f});
+    // Draw a small square icon as primitives (works with any font)
+    float ix = MAX_BTN_X + 8.0f, iy = MAX_BTN_Y + 5.0f, isz = 10.0f;
+    if (maximized) {
+        // Restore icon: two overlapping small squares
+        al_draw_rectangle(ix + 2, iy,     ix + isz + 2, iy + isz - 2, COL_DIM, 1.5f);
+        al_draw_rectangle(ix,     iy + 2, ix + isz,     iy + isz,     COL_DIM, 1.5f);
+    } else {
+        // Maximize icon: one square with thick top border
+        al_draw_rectangle(ix, iy, ix + isz, iy + isz, COL_DIM, 1.5f);
+        al_draw_line(ix, iy, ix + isz, iy, COL_DIM, 3.0f); // thick top = title bar
+    }
+}
+
+bool Graphic_Manager::maximize_btn_click(int x, int y) const {
+    if (fullscreen_) return false;
+    return (float)x >= MAX_BTN_X && (float)x <= MAX_BTN_X + MAX_BTN_W
+        && (float)y >= MAX_BTN_Y && (float)y <= MAX_BTN_Y + MAX_BTN_H;
 }
 
 Graphic_Manager::~Graphic_Manager() {
@@ -124,6 +167,7 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
     // Global Stats
     draw_button(WIN_W - 160, WIN_H - 60, 140, 36, "Global Stats");
 
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -156,6 +200,7 @@ void Graphic_Manager::render_category(Category current) {
                     120.0f + (float)i*(MENU_BTN_H + MENU_BTN_GAP),
                     MENU_BTN_W, MENU_BTN_H, CAT_LABELS[i], hi);
     }
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -177,7 +222,8 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
     if (files.empty()) {
         al_draw_text(font_ui_, COL_DIM, WIN_W/2, 200, ALLEGRO_ALIGN_CENTRE,
                      "No .txt files found in data folder.");
-        al_flip_display();
+        draw_window_chrome();
+    al_flip_display();
         return;
     }
 
@@ -200,6 +246,7 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
     if (scroll_offset + FILES_VISIBLE < (int)files.size())
         draw_button(WIN_W/2-60, WIN_H-30, 120, 34, "v Down");
 
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -254,6 +301,7 @@ void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
         draw_button(bx+3*(bw+gap), by, bw, bh, "Jump To...");
     }
 
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -324,6 +372,7 @@ void Graphic_Manager::render_jump_overlay(int current_para, int total_para,
 
     draw_button(JUMP_X+20,          JUMP_Y+106, 130, 36, "Cancel");
     draw_button(JUMP_X+JUMP_W-150,  JUMP_Y+106, 130, 36, "Go!", true);
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -379,6 +428,7 @@ void Graphic_Manager::render_playing(const Game& game, double elapsed_sec,
     al_clear_to_color(COL_BG);
     draw_toolbar(elapsed_sec, live_wpm, time_remaining_sec);
     draw_passage(game, 60, TOOLBAR_H + 30, WIN_W - 120, cursor_visible);
+    draw_window_chrome();
     al_flip_display();
 }
 
@@ -427,6 +477,7 @@ void Graphic_Manager::render_results(const SessionResult& r) {
 
     draw_button(WIN_W/2-160, WIN_H-60, 140, 40, "Play Again");
     draw_button(WIN_W/2+20,  WIN_H-60, 140, 40, "Menu");
+    draw_window_chrome();
     al_flip_display();
 }
 
