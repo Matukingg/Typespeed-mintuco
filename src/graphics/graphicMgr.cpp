@@ -37,8 +37,7 @@ void Graphic_Manager::clear_full() {
     ALLEGRO_TRANSFORM identity;
     al_identity_transform(&identity);
     al_use_transform(&identity);
-    clear_full();
-    // Restore game transform
+    al_clear_to_color(COL_BG);  // must call Allegro directly, not clear_full()
     ALLEGRO_TRANSFORM t;
     al_identity_transform(&t);
     al_scale_transform(&t, transform_scale_, transform_scale_);
