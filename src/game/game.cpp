@@ -25,8 +25,21 @@ void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
     advance_past_newlines();
 }
 
+// Returns true if the character is a whitespace the user can type
+static bool is_typeable_ws(int unichar) {
+    return unichar == 32 || unichar == 9; // space or tab
+}
+
+// Returns true if the passage character is whitespace
+static bool is_passage_ws(char c) {
+    return c == ' ' || c == '\t';
+}
+
 bool Game::on_key(int unichar) {
-    if (unichar < 32) return false;
+    // Accept printable chars + space (32) + tab (9).
+    // Reject everything else (control chars, enter, escape handled by caller).
+    if (unichar < 9) return false;
+    if (unichar > 9 && unichar < 32) return false;
 
     // Skip past any newlines at current position
     advance_past_newlines();
@@ -36,7 +49,13 @@ bool Game::on_key(int unichar) {
 
     if (!at_end) {
         char expected = chars_[(size_t)cursor_].ch;
-        bool correct  = ((char)unichar == expected);
+
+        // Whitespace flexibility: space and tab are interchangeable
+        bool correct;
+        if (is_typeable_ws(unichar) && is_passage_ws(expected))
+            correct = true;
+        else
+            correct = ((char)unichar == expected);
 
         if (correct) {
             chars_[(size_t)cursor_].status = CharState::Status::Correct;
@@ -45,15 +64,17 @@ bool Game::on_key(int unichar) {
             advance_past_newlines();
         } else {
             // Wrong character — insert as an extra red char at cursor position
+            char typed = is_typeable_ws(unichar) ? ' ' : (char)unichar;
             chars_.insert(chars_.begin() + cursor_,
-                          CharState((char)unichar, true));
+                          CharState(typed, true));
             chars_[(size_t)cursor_].status = CharState::Status::Wrong;
             stats_.record_error();
             cursor_++;
         }
     } else {
         // Typed past end — add extra char
-        chars_.emplace_back((char)unichar, true);
+        char typed = is_typeable_ws(unichar) ? ' ' : (char)unichar;
+        chars_.emplace_back(typed, true);
         chars_.back().status = CharState::Status::Wrong;
         stats_.record_error();
         cursor_++;

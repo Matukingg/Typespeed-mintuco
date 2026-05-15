@@ -93,8 +93,9 @@ int main() {
             if (tick_count % 10 == 0) cursor_vis = !cursor_vis;
 
             if (phase == Phase::PLAYING) {
-                elapsed_sec = al_get_time() - start_time;
-                live_wpm    = game.live_wpm(elapsed_sec);
+                if (start_time > 0.0)
+                    elapsed_sec = al_get_time() - start_time;
+                live_wpm = game.live_wpm(elapsed_sec);
 
                 if (++sample_ticks >= 100) {
                     sample_ticks = 0;
@@ -198,7 +199,7 @@ int main() {
                     } else {
                         game.start(passage, sel_mode, sel_emode,
                                    time_limit_sec, word_target);
-                        start_time   = al_get_time();
+                        start_time   = 0.0; // set on first keypress
                         elapsed_sec  = 0.0;
                         live_wpm     = 0.0;
                         sample_ticks = 0;
@@ -350,7 +351,9 @@ int main() {
                         ? std::max(0, (int)(time_limit_sec - elapsed_sec)) : -1;
                     gfx.render_playing(game, elapsed_sec, remaining, live_wpm, cursor_vis);
 
-                } else if (ev.keyboard.unichar >= 32) {
+                } else if (ev.keyboard.unichar == 9 || ev.keyboard.unichar >= 32) {
+                    if (start_time <= 0.0)
+                        start_time = al_get_time(); // start clock on first keypress
                     game.on_key(ev.keyboard.unichar);
                     live_wpm = game.live_wpm(elapsed_sec);
 
