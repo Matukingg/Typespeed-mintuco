@@ -54,6 +54,9 @@ public:
     void reset();
 
 private:
+    void mark_correct_at(int idx);
+    void advance_past_newlines();
+
     std::vector<CharState> chars_;
     int         passage_len_ = 0;
     int         cursor_      = 0;
@@ -62,6 +65,4 @@ private:
     int         time_limit_sec_ = 60;
     int         word_target_    = 50;
     Stats       stats_;
-
-    void advance_past_newlines();
 };

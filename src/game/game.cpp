@@ -8,10 +8,10 @@ int32_t utf8_decode(const std::string& str, size_t& pos) {
     unsigned char c = (unsigned char)str[pos];
     int32_t cp;
     size_t bytes;
-    if (c < 0x80)        { cp = c;          bytes = 1; }
-    else if (c < 0xE0)   { cp = c & 0x1F;  bytes = 2; }
-    else if (c < 0xF0)   { cp = c & 0x0F;  bytes = 3; }
-    else                  { cp = c & 0x07;  bytes = 4; }
+    if      (c < 0x80) { cp = c;         bytes = 1; }
+    else if (c < 0xE0) { cp = c & 0x1F;  bytes = 2; }
+    else if (c < 0xF0) { cp = c & 0x0F;  bytes = 3; }
+    else               { cp = c & 0x07;  bytes = 4; }
     for (size_t i = 1; i < bytes && pos + i < str.size(); i++)
         cp = (cp << 6) | ((unsigned char)str[pos + i] & 0x3F);
     pos += bytes;
@@ -38,15 +38,22 @@ std::string utf8_encode(int32_t cp) {
     return s;
 }
 
-static bool is_ws_cp(int32_t cp) { return cp == 32 || cp == 9; } // space or tab
-static bool is_newline_cp(int32_t cp) { return cp == 10 || cp == 13; }
+static bool is_ws(int32_t cp)      { return cp == 32 || cp == 9; }
+static bool is_newline(int32_t cp) { return cp == 10 || cp == 13; }
 
-// ── Game implementation ───────────────────────────────────────────────────────
+static const int32_t BRACKET_PAIRS[][2] = {{'(',')'}, {'[',']'}, {'{','}'}};
+static int32_t matching_closer(int32_t opener) {
+    for (auto& p : BRACKET_PAIRS)
+        if (p[0] == opener) return p[1];
+    return 0;
+}
+
+// ── Game ──────────────────────────────────────────────────────────────────────
 
 void Game::advance_past_newlines() {
     while (cursor_ < (int)chars_.size()
            && !chars_[(size_t)cursor_].extra_
-           && is_newline_cp(chars_[(size_t)cursor_].codepoint)) {
+           && is_newline(chars_[(size_t)cursor_].codepoint)) {
         chars_[(size_t)cursor_].status = CharState::Status::Correct;
         cursor_++;
     }
@@ -55,13 +62,11 @@ void Game::advance_past_newlines() {
 void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
                  int time_limit_sec, int word_target) {
     chars_.clear();
-    // Decode passage as UTF-8 codepoints
     size_t pos = 0;
     while (pos < passage.size()) {
         size_t start = pos;
         int32_t cp = utf8_decode(passage, pos);
-        std::string seq = passage.substr(start, pos - start);
-        chars_.emplace_back(seq, cp);
+        chars_.emplace_back(passage.substr(start, pos - start), cp);
     }
     passage_len_    = (int)chars_.size();
     cursor_         = 0;
@@ -73,99 +78,103 @@ void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
     advance_past_newlines();
 }
 
+// Mark a passage char at index as correct (without advancing cursor)
+void Game::mark_correct_at(int idx) {
+    chars_[(size_t)idx].status = CharState::Status::Correct;
+    stats_.record_correct();
+}
+
 bool Game::on_key(int32_t unichar) {
-    // Accept printable + space (32) + tab (9). Reject other control chars.
-    if (unichar < 9) return false;
-    if (unichar > 9 && unichar < 32) return false;
+    // Accept: tab (9), space (32), printable (33+). Reject other control chars.
+    if (unichar < 9)                    return false;
+    if (unichar > 9 && unichar < 32)    return false;
 
     advance_past_newlines();
 
-    bool at_end = (cursor_ >= passage_len_);
-
-    if (!at_end) {
-        int32_t expected_cp = chars_[(size_t)cursor_].codepoint;
-
-        // Whitespace flexibility: space/tab match any whitespace in passage
-        bool correct;
-        if (is_ws_cp(unichar) && is_ws_cp(expected_cp))
-            correct = true;
-        // Space flexibility: skip spaces in passage when not typed (handled below)
-        else
-            correct = (unichar == expected_cp);
-
-        if (correct) {
-            chars_[(size_t)cursor_].status = CharState::Status::Correct;
-            stats_.record_correct();
-            cursor_++;
-            advance_past_newlines();
-
-            // Bracket auto-pair: after typing ( [ {, look ahead for the
-            // matching closer in the passage and jump cursor past it,
-            // leaving it pre-marked as correct so the user can move left
-            // and type the contents. Mirrors how editors handle bracket pairs.
-            static const int32_t PAIRS[][2] = {{'(',')'}, {'[',']'}, {'{','}'}};
-            for (auto& p : PAIRS) {
-                if (unichar != p[0]) continue;
-                // Find the matching closer in the passage (skip extras)
-                int depth = 1, look = cursor_;
-                while (look < passage_len_ && depth > 0) {
-                    int32_t lcp = chars_[(size_t)look].codepoint;
-                    if (!chars_[(size_t)look].extra_) {
-                        if (lcp == p[0]) depth++;
-                        if (lcp == p[1]) depth--;
-                    }
-                    if (depth > 0) look++;
-                }
-                // Only auto-pair if the closer is the very next passage char
-                // OR is immediately after whitespace (simple heuristic)
-                if (depth == 0 && look == cursor_) {
-                    // Closer is exactly at cursor — mark it correct and
-                    // leave cursor before it so user types contents
-                    chars_[(size_t)look].status = CharState::Status::Correct;
-                    stats_.record_correct();
-                    // Don't advance cursor — user types contents before closer
-                }
-                break;
-            }
-        } else {
-            // Check if we should auto-skip spaces in passage (n+1 == n + 1)
-            // If typed char matches the NEXT non-space passage char, skip spaces
-            int lookahead = cursor_;
-            while (lookahead < passage_len_ &&
-                   is_ws_cp(chars_[(size_t)lookahead].codepoint))
-                lookahead++;
-            bool matches_after_spaces = (lookahead < passage_len_ &&
-                                         unichar == chars_[(size_t)lookahead].codepoint &&
-                                         lookahead > cursor_); // only if spaces were skipped
-
-            if (matches_after_spaces) {
-                // Mark skipped spaces as correct silently
-                while (cursor_ < lookahead) {
-                    chars_[(size_t)cursor_].status = CharState::Status::Correct;
-                    cursor_++;
-                }
-                // Now type the matching char
-                chars_[(size_t)cursor_].status = CharState::Status::Correct;
-                stats_.record_correct();
-                cursor_++;
-                advance_past_newlines();
-            } else {
-                // Wrong — insert extra red char
-                std::string typed_utf8 = utf8_encode(unichar);
-                chars_.insert(chars_.begin() + cursor_,
-                              CharState(typed_utf8, unichar, true));
-                chars_[(size_t)cursor_].status = CharState::Status::Wrong;
-                stats_.record_error();
-                cursor_++;
-            }
-        }
-    } else {
-        // Past end — add extra char
-        std::string typed_utf8 = utf8_encode(unichar);
-        chars_.emplace_back(typed_utf8, unichar, true);
+    // ── Past end of passage ───────────────────────────────────────────────────
+    if (cursor_ >= passage_len_) {
+        chars_.emplace_back(utf8_encode(unichar), unichar, true);
         chars_.back().status = CharState::Status::Wrong;
         stats_.record_error();
         cursor_++;
+        return true;
+    }
+
+    // ── Cursor is on a passage character ─────────────────────────────────────
+    int32_t expected = chars_[(size_t)cursor_].codepoint;
+
+    // Rule 1: whitespace flexibility — space and tab both match any whitespace
+    bool correct = (is_ws(unichar) && is_ws(expected)) || (unichar == expected);
+
+    // Rule 2: space-skip — if typed char is NOT whitespace and expected IS whitespace,
+    // look past all whitespace to see if the typed char matches what's beyond.
+    // This lets you type "n+1" when the passage says "n + 1".
+    if (!correct && !is_ws(unichar) && is_ws(expected)) {
+        int look = cursor_;
+        while (look < passage_len_ && is_ws(chars_[(size_t)look].codepoint)
+               && !chars_[(size_t)look].extra_)
+            look++;
+        if (look < passage_len_ && unichar == chars_[(size_t)look].codepoint
+            && !chars_[(size_t)look].extra_) {
+            // Silently mark skipped whitespace as correct, then type the char
+            while (cursor_ < look) {
+                chars_[(size_t)cursor_].status = CharState::Status::Correct;
+                stats_.record_correct();
+                cursor_++;
+            }
+            correct = true;
+            // fall through to correct-handling below
+        }
+    }
+
+    if (correct) {
+        chars_[(size_t)cursor_].status = CharState::Status::Correct;
+        stats_.record_correct();
+        cursor_++;
+        advance_past_newlines();
+
+        // Rule 3: bracket auto-complete — after typing ( [ {, find the
+        // matching closer in the passage and pre-mark it correct.
+        // Cursor stays before the closer so the user types the contents first.
+        int32_t closer = matching_closer(unichar);
+        if (closer != 0) {
+            // Walk forward through passage (non-extra) chars to find the matching closer
+            int depth = 1;
+            for (int look = cursor_; look < passage_len_; look++) {
+                if (chars_[(size_t)look].extra_) continue;
+                int32_t lcp = chars_[(size_t)look].codepoint;
+                if (lcp == unichar) depth++;
+                else if (lcp == closer) {
+                    depth--;
+                    if (depth == 0) {
+                        // Mark the closer correct and leave cursor before it
+                        chars_[(size_t)look].status = CharState::Status::Correct;
+                        stats_.record_correct();
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        // Wrong — insert a red extra character at cursor position
+        chars_.insert(chars_.begin() + cursor_,
+                      CharState(utf8_encode(unichar), unichar, true));
+        chars_[(size_t)cursor_].status = CharState::Status::Wrong;
+        stats_.record_error();
+        cursor_++;
+    }
+    return true;
+}
+
+bool Game::on_backspace() {
+    if (cursor_ <= 0) return false;
+    cursor_--;
+    auto& cs = chars_[(size_t)cursor_];
+    if (cs.extra_) {
+        chars_.erase(chars_.begin() + cursor_);
+    } else {
+        cs.status = CharState::Status::Neutral;
+        // If this was a bracket closer that was auto-completed, un-mark it
     }
     return true;
 }
@@ -182,39 +191,23 @@ bool Game::on_right() {
     return true;
 }
 
-bool Game::on_backspace() {
-    if (cursor_ <= 0) return false;
-    cursor_--;
-    auto& cs = chars_[(size_t)cursor_];
-    if (cs.extra_) {
-        chars_.erase(chars_.begin() + cursor_);
-    } else {
-        cs.status = CharState::Status::Neutral;
-    }
-    return true;
-}
-
 bool Game::has_errors() const {
-    for (int i = 0; i < cursor_ && i < (int)chars_.size(); i++) {
-        if (chars_[(size_t)i].status == CharState::Status::Wrong) return true;
-        if (chars_[(size_t)i].extra_) return true;
+    for (int i = 0; i < (int)chars_.size(); i++) {
+        const auto& cs = chars_[(size_t)i];
+        if (cs.extra_ || cs.status == CharState::Status::Wrong) return true;
     }
     return false;
 }
 
-void Game::tick_sample(double elapsed_sec) {
-    stats_.sample_wpm(elapsed_sec);
-}
+void Game::tick_sample(double elapsed_sec) { stats_.sample_wpm(elapsed_sec); }
 
 bool Game::is_finished() const {
     if (has_errors()) return false;
-    if (mode_ == RoundMode::WordCount)
-        return words_typed() >= word_target_;
-    int correct_passage = 0;
+    if (mode_ == RoundMode::WordCount) return words_typed() >= word_target_;
+    // All passage chars must be correct
     for (auto& cs : chars_)
-        if (!cs.extra_ && cs.status == CharState::Status::Correct)
-            correct_passage++;
-    return correct_passage >= passage_len_;
+        if (!cs.extra_ && cs.status != CharState::Status::Correct) return false;
+    return true;
 }
 
 int Game::words_typed() const {
