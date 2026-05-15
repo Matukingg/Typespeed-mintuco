@@ -79,7 +79,6 @@ public:
     // Must be called after every render to draw the window chrome overlay
     void draw_window_chrome();
 
-    // Convert raw mouse coordinates to game-space coordinates
     void screen_to_game(int sx, int sy, int& gx, int& gy) const {
         gx = (int)(((float)sx - transform_ox_) / transform_scale_);
         gy = (int)(((float)sy - transform_oy_) / transform_scale_);
@@ -94,7 +93,11 @@ private:
     float            transform_oy_     = 0.0f;
     float            transform_scale_  = 1.0f;
 
-    void clear_full(); // clear entire display to COL_BG, preserve game transform
+    void clear_full();
+    void reload_fonts();
+    // Draw text sharp — bypasses scale transform, converts coords manually
+    void draw_text_s(ALLEGRO_FONT* font, ALLEGRO_COLOR col,
+                     float gx, float gy, int flags, const char* text) const;
     void draw_toolbar(double elapsed_sec, double wpm, int time_remaining_sec);
     void draw_button(float x, float y, float w, float h,
                      const std::string& label, bool highlighted = false);

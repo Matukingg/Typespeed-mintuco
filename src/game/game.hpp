@@ -6,9 +6,13 @@
 enum class ErrorMode { Strict, Lenient };
 enum class RoundMode { Paragraph, TimeLimit, WordCount, Endless };
 
+// Status of each display slot in the passage
 struct CharState {
-    char ch;
+    char ch;     // expected character (or typed extra char if extra_)
+    bool extra_; // true = this slot is an extra typed char beyond the passage
     enum class Status { Neutral, Correct, Wrong } status = Status::Neutral;
+    CharState(char c, bool extra = false)
+        : ch(c), extra_(extra), status(Status::Neutral) {}
 };
 
 class Game {
@@ -23,6 +27,7 @@ public:
 
     bool is_finished() const;
     bool is_strict()   const { return emode_ == ErrorMode::Strict; }
+    bool has_errors()  const; // true if any wrong/extra chars exist before cursor
 
     const std::vector<CharState>& char_states() const { return chars_; }
     int cursor_pos()    const { return cursor_; }
@@ -38,12 +43,14 @@ public:
     void reset();
 
 private:
-    std::vector<CharState> chars_;
-    int       cursor_         = 0;
-    RoundMode mode_           = RoundMode::Paragraph;
-    ErrorMode emode_          = ErrorMode::Strict;
-    int       time_limit_sec_ = 60;
-    int       word_target_    = 50;
-    bool      has_error_      = false;
-    Stats     stats_;
+    std::vector<CharState> chars_;   // passage chars + any extra typed chars
+    int         passage_len_ = 0;    // length of original passage (no extras)
+    int         cursor_      = 0;    // current display position
+    RoundMode   mode_        = RoundMode::Paragraph;
+    ErrorMode   emode_       = ErrorMode::Strict;
+    int         time_limit_sec_ = 60;
+    int         word_target_    = 50;
+    Stats       stats_;
+
+    void advance_past_newlines();
 };

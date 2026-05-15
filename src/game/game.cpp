@@ -1,70 +1,90 @@
 #include "game.hpp"
 #include <algorithm>
 
+void Game::advance_past_newlines() {
+    while (cursor_ < (int)chars_.size()
+           && !chars_[(size_t)cursor_].extra_
+           && chars_[(size_t)cursor_].ch == '\n') {
+        chars_[(size_t)cursor_].status = CharState::Status::Correct;
+        cursor_++;
+    }
+}
+
 void Game::start(const std::string& passage, RoundMode mode, ErrorMode emode,
                  int time_limit_sec, int word_target) {
     chars_.clear();
     for (char c : passage)
-        chars_.push_back({c, CharState::Status::Neutral});
+        chars_.emplace_back(c);
+    passage_len_    = (int)chars_.size();
     cursor_         = 0;
     mode_           = mode;
     emode_          = emode;
     time_limit_sec_ = time_limit_sec;
     word_target_    = word_target;
-    has_error_      = false;
     stats_.reset();
-    // Skip any leading newlines
-    while (cursor_ < (int)chars_.size() && chars_[(size_t)cursor_].ch == '\n') {
-        chars_[(size_t)cursor_].status = CharState::Status::Correct;
-        cursor_++;
-    }
+    advance_past_newlines();
 }
 
 bool Game::on_key(int unichar) {
-    if (cursor_ >= (int)chars_.size()) return false;
     if (unichar < 32) return false;
 
-    // Auto-advance past newline characters — user can't type them,
-    // and pressing Enter/Return would send unichar 13 which is < 32.
-    // We skip them silently so the cursor lands on a typeable character.
-    while (cursor_ < (int)chars_.size() && chars_[(size_t)cursor_].ch == '\n') {
-        chars_[(size_t)cursor_].status = CharState::Status::Correct;
+    // Skip past any newlines at current position
+    advance_past_newlines();
+
+    // Are we past the end of the passage?
+    bool at_end = (cursor_ >= passage_len_);
+
+    if (!at_end) {
+        char expected = chars_[(size_t)cursor_].ch;
+        bool correct  = ((char)unichar == expected);
+
+        if (correct) {
+            chars_[(size_t)cursor_].status = CharState::Status::Correct;
+            stats_.record_correct();
+            cursor_++;
+            advance_past_newlines();
+        } else {
+            // Wrong character — insert as an extra red char at cursor position
+            chars_.insert(chars_.begin() + cursor_,
+                          CharState((char)unichar, true));
+            chars_[(size_t)cursor_].status = CharState::Status::Wrong;
+            stats_.record_error();
+            cursor_++;
+        }
+    } else {
+        // Typed past end — add extra char
+        chars_.emplace_back((char)unichar, true);
+        chars_.back().status = CharState::Status::Wrong;
+        stats_.record_error();
         cursor_++;
     }
-    if (cursor_ >= (int)chars_.size()) return false;
-
-    auto ci = (size_t)cursor_;
-    char expected = chars_[ci].ch;
-    bool correct  = ((char)unichar == expected);
-
-    if (!correct && emode_ == ErrorMode::Strict) {
-        // Only count one error per character position — don't penalise key-hammering
-        if (chars_[ci].status != CharState::Status::Wrong) {
-            stats_.record_error();
-        }
-        chars_[ci].status = CharState::Status::Wrong;
-        has_error_ = true;
-        return true;
-    }
-
-    if (correct) {
-        chars_[ci].status = CharState::Status::Correct;
-        stats_.record_correct();
-        has_error_ = false;
-    } else {
-        chars_[ci].status = CharState::Status::Wrong;
-        stats_.record_error();
-    }
-    cursor_++;
     return true;
 }
 
 bool Game::on_backspace() {
     if (cursor_ <= 0) return false;
+
     cursor_--;
-    chars_[(size_t)cursor_].status = CharState::Status::Neutral;
-    has_error_ = false;
+    auto& cs = chars_[(size_t)cursor_];
+
+    if (cs.extra_) {
+        // Remove extra inserted character
+        chars_.erase(chars_.begin() + cursor_);
+    } else {
+        // Reset passage character to neutral
+        cs.status = CharState::Status::Neutral;
+    }
     return true;
+}
+
+bool Game::has_errors() const {
+    for (int i = 0; i < cursor_ && i < (int)chars_.size(); i++) {
+        if (chars_[(size_t)i].status == CharState::Status::Wrong)
+            return true;
+        if (chars_[(size_t)i].extra_)
+            return true;
+    }
+    return false;
 }
 
 void Game::tick_sample(double elapsed_sec) {
@@ -72,20 +92,28 @@ void Game::tick_sample(double elapsed_sec) {
 }
 
 bool Game::is_finished() const {
+    // Can't finish if there are errors — must fix them first
+    if (has_errors()) return false;
+
     if (mode_ == RoundMode::WordCount)
         return words_typed() >= word_target_;
-    // Paragraph, Endless, TimeLimit (time checked by caller): finish on passage end
-    return cursor_ >= (int)chars_.size();
+
+    // Paragraph / Endless / TimeLimit: all passage chars must be correct
+    // Count only non-extra chars that are correct
+    int correct_passage = 0;
+    for (auto& cs : chars_)
+        if (!cs.extra_ && cs.status == CharState::Status::Correct)
+            correct_passage++;
+    return correct_passage >= passage_len_;
 }
 
 int Game::words_typed() const {
-    // Count completed words = number of spaces passed through + 1 (if any chars typed).
-    // Using spaces regardless of correct/wrong so lenient mode word count works consistently.
     if (cursor_ == 0) return 0;
     int spaces = 0;
     int limit = std::min(cursor_, (int)chars_.size());
     for (int i = 0; i < limit; i++)
-        if (chars_[(size_t)i].ch == ' ') spaces++;
+        if (!chars_[(size_t)i].extra_ && chars_[(size_t)i].ch == ' ')
+            spaces++;
     return spaces + 1;
 }
 
@@ -103,7 +131,7 @@ SessionResult Game::finish(const std::string& category,
 
 void Game::reset() {
     chars_.clear();
-    cursor_    = 0;
-    has_error_ = false;
+    passage_len_ = 0;
+    cursor_      = 0;
     stats_.reset();
 }

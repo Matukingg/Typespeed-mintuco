@@ -7,14 +7,14 @@
 // ── Colours ───────────────────────────────────────────────────────────────────
 static const ALLEGRO_COLOR COL_BG       = {0.10f, 0.10f, 0.12f, 1.0f};
 static const ALLEGRO_COLOR COL_TOOLBAR  = {0.14f, 0.14f, 0.18f, 1.0f};
-static const ALLEGRO_COLOR COL_TEXT     = {0.85f, 0.85f, 0.85f, 1.0f};
-static const ALLEGRO_COLOR COL_CORRECT  = {0.35f, 0.85f, 0.45f, 1.0f};
-static const ALLEGRO_COLOR COL_WRONG    = {0.90f, 0.25f, 0.25f, 1.0f};
+static const ALLEGRO_COLOR COL_TEXT     = {0.55f, 0.55f, 0.58f, 1.0f}; // untyped — light gray
+static const ALLEGRO_COLOR COL_CORRECT  = {1.0f,  1.0f,  1.0f,  1.0f}; // correct — pure white
+static const ALLEGRO_COLOR COL_WRONG    = {0.90f, 0.20f, 0.20f, 1.0f}; // wrong — red
 static const ALLEGRO_COLOR COL_CURSOR   = {0.90f, 0.80f, 0.20f, 1.0f};
 static const ALLEGRO_COLOR COL_BUTTON   = {0.20f, 0.20f, 0.28f, 1.0f};
 static const ALLEGRO_COLOR COL_BUTTON_H = {0.30f, 0.30f, 0.45f, 1.0f};
 static const ALLEGRO_COLOR COL_WHITE    = {1.0f,  1.0f,  1.0f,  1.0f};
-static const ALLEGRO_COLOR COL_DIM      = {0.55f, 0.55f, 0.60f, 1.0f};
+static const ALLEGRO_COLOR COL_DIM      = {0.45f, 0.45f, 0.50f, 1.0f};
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 static constexpr float MENU_BTN_X   = 300.0f;
@@ -51,21 +51,64 @@ void Graphic_Manager::update_transform() {
 
     float scale_x = (float)dw / WIN_W;
     float scale_y = (float)dh / WIN_H;
-    float scale   = std::min(scale_x, scale_y); // letterbox: fit whole game
+    transform_scale_ = std::min(scale_x, scale_y);
+    transform_ox_    = ((float)dw - WIN_W * transform_scale_) / 2.0f;
+    transform_oy_    = ((float)dh - WIN_H * transform_scale_) / 2.0f;
 
-    float ox = ((float)dw - WIN_W * scale) / 2.0f;
-    float oy = ((float)dh - WIN_H * scale) / 2.0f;
-
+    // Allegro transform handles all coordinate scaling automatically.
+    // Fonts are reloaded at scale*base_px so they're rasterized sharp.
     ALLEGRO_TRANSFORM t;
     al_identity_transform(&t);
-    al_scale_transform(&t, scale, scale);
-    al_translate_transform(&t, ox, oy);
+    al_scale_transform(&t, transform_scale_, transform_scale_);
+    al_translate_transform(&t, transform_ox_, transform_oy_);
     al_use_transform(&t);
 
-    // Store offset so hit-tests can un-transform mouse coords
-    transform_ox_ = ox;
-    transform_oy_ = oy;
-    transform_scale_ = scale;
+    reload_fonts();
+}
+
+void Graphic_Manager::reload_fonts() {
+    // Destroy old fonts safely
+    if (font_ui_   && font_ui_   != al_create_builtin_font()) { al_destroy_font(font_ui_);   font_ui_   = nullptr; }
+    if (font_mono_ && font_mono_ != al_create_builtin_font()) { al_destroy_font(font_mono_); font_mono_ = nullptr; }
+
+    // Rasterize at physical pixel size so glyphs are sharp.
+    // Text is drawn in screen space (identity transform) with coords
+    // manually converted via transform_ox_/oy_/scale_.
+    int ui_px   = std::max(8, (int)(18.0f * transform_scale_));
+    int mono_px = std::max(8, (int)(16.0f * transform_scale_));
+
+    font_ui_ = al_load_ttf_font("data/font.ttf", ui_px, 0);
+    if (!font_ui_)
+        font_ui_ = al_load_ttf_font(
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", ui_px, 0);
+    if (!font_ui_)
+        font_ui_ = al_create_builtin_font();
+
+    font_mono_ = al_load_ttf_font("data/mono.ttf", mono_px, 0);
+    if (!font_mono_)
+        font_mono_ = al_load_ttf_font(
+            "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", mono_px, 0);
+    if (!font_mono_)
+        font_mono_ = al_create_builtin_font();
+}
+
+// Draw text in screen space (bypasses scale transform so font is sharp).
+// gx/gy are game-space coordinates; converted to screen space here.
+void Graphic_Manager::draw_text_s(ALLEGRO_FONT* font, ALLEGRO_COLOR col,
+                                   float gx, float gy, int flags,
+                                   const char* text) const {
+    ALLEGRO_TRANSFORM identity;
+    al_identity_transform(&identity);
+    al_use_transform(&identity);
+    float sx = transform_ox_ + gx * transform_scale_;
+    float sy = transform_oy_ + gy * transform_scale_;
+    al_draw_text(font, col, sx, sy, flags, text);
+    // Restore scale transform
+    ALLEGRO_TRANSFORM t;
+    al_identity_transform(&t);
+    al_scale_transform(&t, transform_scale_, transform_scale_);
+    al_translate_transform(&t, transform_ox_, transform_oy_);
+    al_use_transform(&t);
 }
 
 // ── Constructor / Destructor ──────────────────────────────────────────────────
@@ -79,22 +122,9 @@ Graphic_Manager::Graphic_Manager() {
     al_set_new_display_flags(0);
     if (!display_) std::exit(1);
     al_set_window_title(display_, "Typespeed");
-    update_transform();
-
-    // Bundled fonts take priority; fall back to system Ubuntu fonts, then builtin
-    font_ui_ = al_load_ttf_font("data/font.ttf", 18, 0);
-    if (!font_ui_)
-        font_ui_ = al_load_ttf_font(
-            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", 18, 0);
-    if (!font_ui_)
-        font_ui_ = al_create_builtin_font();
-
-    font_mono_ = al_load_ttf_font("data/mono.ttf", 16, 0);
-    if (!font_mono_)
-        font_mono_ = al_load_ttf_font(
-            "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", 16, 0);
-    if (!font_mono_)
-        font_mono_ = al_create_builtin_font();
+    font_ui_   = nullptr;
+    font_mono_ = nullptr;
+    update_transform(); // loads fonts at correct scale
 }
 
 void Graphic_Manager::toggle_fullscreen() {
@@ -135,9 +165,10 @@ void Graphic_Manager::draw_button(float x, float y, float w, float h,
     ALLEGRO_COLOR col = highlighted ? COL_BUTTON_H : COL_BUTTON;
     al_draw_filled_rounded_rectangle(x, y, x+w, y+h, 6, 6, col);
     al_draw_rounded_rectangle(x, y, x+w, y+h, 6, 6, COL_DIM, 1.0f);
-    float fh = (float)al_get_font_line_height(font_ui_);
-    al_draw_text(font_ui_, COL_WHITE, x + w/2.0f, y + h/2.0f - fh/2.0f,
-                 ALLEGRO_ALIGN_CENTRE, label.c_str());
+    // Font height is in physical pixels; convert to game-space for centering
+    float fh_game = (float)al_get_font_line_height(font_ui_) / transform_scale_;
+    draw_text_s(font_ui_, COL_WHITE, x + w/2.0f, y + h/2.0f - fh_game/2.0f,
+                ALLEGRO_ALIGN_CENTRE, label.c_str());
 }
 
 void Graphic_Manager::draw_toolbar(double elapsed_sec, double wpm,
@@ -147,15 +178,15 @@ void Graphic_Manager::draw_toolbar(double elapsed_sec, double wpm,
     int mins = (int)elapsed_sec / 60;
     int secs = (int)elapsed_sec % 60;
     std::snprintf(buf, sizeof(buf), "%02d:%02d", mins, secs);
-    al_draw_text(font_ui_, COL_TEXT, 10, 12, 0, buf);
+    draw_text_s(font_ui_, COL_TEXT, 10, 12, 0, buf);
 
     std::snprintf(buf, sizeof(buf), "%.0f WPM", wpm);
-    al_draw_text(font_ui_, COL_TEXT, WIN_W/2, 12, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_TEXT, WIN_W/2, 12, ALLEGRO_ALIGN_CENTRE, buf);
 
     if (time_remaining_sec >= 0) {
         std::snprintf(buf, sizeof(buf), "-%02d:%02d",
                       time_remaining_sec/60, time_remaining_sec%60);
-        al_draw_text(font_ui_, COL_TEXT, WIN_W-10, 12, ALLEGRO_ALIGN_RIGHT, buf);
+        draw_text_s(font_ui_, COL_TEXT, WIN_W-10, 12, ALLEGRO_ALIGN_RIGHT, buf);
     }
 }
 
@@ -164,7 +195,7 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
                                    int time_limit_sec, int word_target) {
     clear_full();
 
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 70, ALLEGRO_ALIGN_CENTRE, "TYPESPEED");
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 70, ALLEGRO_ALIGN_CENTRE, "TYPESPEED");
 
     const char* mode_labels[] = {"Paragraph", "Time Limit", "Word Count", "Endless"};
     for (int i = 0; i < 4; i++) {
@@ -187,7 +218,7 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
     else if (current_mode == RoundMode::WordCount)
         std::snprintf(hint, sizeof(hint), "Words: %d  (< / >)", word_target);
     if (hint[0])
-        al_draw_text(font_ui_, COL_DIM, WIN_W/2, ey + 46, ALLEGRO_ALIGN_CENTRE, hint);
+        draw_text_s(font_ui_, COL_DIM, WIN_W/2, ey + 46, ALLEGRO_ALIGN_CENTRE, hint);
 
     // Start button — clicking any mode button goes to category; this is a shortcut
     draw_button(MENU_BTN_X, ey + 80, MENU_BTN_W, 44, "Start", true);
@@ -221,7 +252,7 @@ static const char* CAT_LABELS[] = {
 
 void Graphic_Manager::render_category(Category current) {
     clear_full();
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 60, ALLEGRO_ALIGN_CENTRE, "Select Category");
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 60, ALLEGRO_ALIGN_CENTRE, "Select Category");
     for (int i = 0; i < 7; i++) {
         bool hi = ((int)current == i);
         draw_button(MENU_BTN_X,
@@ -245,10 +276,10 @@ int Graphic_Manager::category_click(int x, int y) const {
 void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
                                         int scroll_offset) {
     clear_full();
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 50, ALLEGRO_ALIGN_CENTRE, "Select File");
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 50, ALLEGRO_ALIGN_CENTRE, "Select File");
 
     if (files.empty()) {
-        al_draw_text(font_ui_, COL_DIM, WIN_W/2, 200, ALLEGRO_ALIGN_CENTRE,
+        draw_text_s(font_ui_, COL_DIM, WIN_W/2, 200, ALLEGRO_ALIGN_CENTRE,
                      "No .txt files found in data folder.");
         draw_window_chrome();
     al_flip_display();
@@ -261,11 +292,11 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
         al_draw_filled_rounded_rectangle(FILE_X, by, FILE_X+FILE_W, by+FILE_ROW_H-4,
                                           4, 4, COL_BUTTON);
         const auto& fi = files[(size_t)i];
-        al_draw_text(font_ui_, COL_WHITE, FILE_X+12, by+12, 0, fi.filename.c_str());
+        draw_text_s(font_ui_, COL_WHITE, FILE_X+12, by+12, 0, fi.filename.c_str());
         char meta[64];
         std::snprintf(meta, sizeof(meta), "%d words  %d lines",
                       fi.word_count, fi.line_count);
-        al_draw_text(font_ui_, COL_DIM, FILE_X+FILE_W-8, by+12,
+        draw_text_s(font_ui_, COL_DIM, FILE_X+FILE_W-8, by+12,
                      ALLEGRO_ALIGN_RIGHT, meta);
     }
 
@@ -299,7 +330,7 @@ bool Graphic_Manager::file_scroll_down_click(int x, int y) const {
 void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
                                       int current_para, int total_para) {
     clear_full();
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 80, ALLEGRO_ALIGN_CENTRE,
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 80, ALLEGRO_ALIGN_CENTRE,
                  fi.filename.c_str());
     char buf[128];
     if (TextBank::is_prose(cat) && total_para > 0)
@@ -307,11 +338,11 @@ void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
                       current_para + 1, total_para);
     else
         std::strcpy(buf, "Full file");
-    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 120, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_DIM, WIN_W/2, 120, ALLEGRO_ALIGN_CENTRE, buf);
 
     std::snprintf(buf, sizeof(buf), "%d words  |  %d lines",
                   fi.word_count, fi.line_count);
-    al_draw_text(font_ui_, COL_TEXT, WIN_W/2, 160, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_TEXT, WIN_W/2, 160, ALLEGRO_ALIGN_CENTRE, buf);
 
     // Back / Start always present
     draw_button(WIN_W/2-160, 220, 140, 44, "Back");
@@ -387,7 +418,7 @@ void Graphic_Manager::render_jump_overlay(int current_para, int total_para,
 
     char buf[64];
     std::snprintf(buf, sizeof(buf), "Jump to paragraph (1 - %d):", total_para);
-    al_draw_text(font_ui_, COL_TEXT, JUMP_X+JUMP_W/2.0f, JUMP_Y+18.0f,
+    draw_text_s(font_ui_, COL_TEXT, JUMP_X+JUMP_W/2.0f, JUMP_Y+18.0f,
                  ALLEGRO_ALIGN_CENTRE, buf);
 
     // Input box
@@ -395,7 +426,7 @@ void Graphic_Manager::render_jump_overlay(int current_para, int total_para,
     al_draw_filled_rounded_rectangle(ix, iy, ix+iw, iy+ih, 4, 4, {0.08f,0.08f,0.10f,1.0f});
     al_draw_rounded_rectangle(ix, iy, ix+iw, iy+ih, 4, 4, COL_DIM, 1.0f);
     std::string display = input.empty() ? std::to_string(current_para + 1) : input;
-    al_draw_text(font_ui_, input.empty() ? COL_DIM : COL_WHITE,
+    draw_text_s(font_ui_, input.empty() ? COL_DIM : COL_WHITE,
                  ix+iw/2.0f, iy+8.0f, ALLEGRO_ALIGN_CENTRE, display.c_str());
 
     draw_button(JUMP_X+20,          JUMP_Y+106, 130, 36, "Cancel");
@@ -416,8 +447,9 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
                                     float max_w, bool cursor_visible) {
     const auto& chars = game.char_states();
     int cursor = game.cursor_pos();
-    float fh = (float)al_get_font_line_height(font_mono_);
-    float fw = (float)al_get_text_width(font_mono_, "M");
+    // Physical pixel sizes → game-space by dividing by scale
+    float fh = (float)al_get_font_line_height(font_mono_) / transform_scale_;
+    float fw = (float)al_get_text_width(font_mono_, "M")  / transform_scale_;
 
     float cx = x, cy = y;
     for (int i = 0; i <= (int)chars.size(); i++) {
@@ -443,7 +475,7 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
         }
 
         char buf[2] = {c, 0};
-        al_draw_text(font_mono_, col, cx, cy, 0, buf);
+        draw_text_s(font_mono_, col, cx, cy, 0, buf);
         cx += fw;
 
         if (cx + fw > x + max_w) { cx = x; cy += fh + 4; }
@@ -463,17 +495,17 @@ void Graphic_Manager::render_playing(const Game& game, double elapsed_sec,
 // ── Results ───────────────────────────────────────────────────────────────────
 void Graphic_Manager::render_results(const SessionResult& r) {
     clear_full();
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 30, ALLEGRO_ALIGN_CENTRE, "Results");
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 30, ALLEGRO_ALIGN_CENTRE, "Results");
 
     char buf[128];
     std::snprintf(buf, sizeof(buf), "%.1f WPM", r.wpm);
-    al_draw_text(font_ui_, COL_CORRECT, WIN_W/2, 80, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_CORRECT, WIN_W/2, 80, ALLEGRO_ALIGN_CENTRE, buf);
 
     std::snprintf(buf, sizeof(buf), "Accuracy: %.1f%%", r.accuracy * 100.0);
-    al_draw_text(font_ui_, COL_TEXT, WIN_W/2, 110, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_TEXT, WIN_W/2, 110, ALLEGRO_ALIGN_CENTRE, buf);
 
     std::snprintf(buf, sizeof(buf), "Errors: %d", r.error_count);
-    al_draw_text(font_ui_, COL_WRONG, WIN_W/2, 140, ALLEGRO_ALIGN_CENTRE, buf);
+    draw_text_s(font_ui_, COL_WRONG, WIN_W/2, 140, ALLEGRO_ALIGN_CENTRE, buf);
 
     // WPM graph
     if (!r.wpm_samples.empty()) {
@@ -498,9 +530,9 @@ void Graphic_Manager::render_results(const SessionResult& r) {
 
         // Axis labels
         std::snprintf(buf, sizeof(buf), "%.0f wpm", max_wpm);
-        al_draw_text(font_ui_, COL_DIM, gx - 4, gy - 2, ALLEGRO_ALIGN_RIGHT, buf);
+        draw_text_s(font_ui_, COL_DIM, gx - 4, gy - 2, ALLEGRO_ALIGN_RIGHT, buf);
         std::snprintf(buf, sizeof(buf), "%.0fs", max_t);
-        al_draw_text(font_ui_, COL_DIM, gx+gw, gy+gh+2, ALLEGRO_ALIGN_RIGHT, buf);
+        draw_text_s(font_ui_, COL_DIM, gx+gw, gy+gh+2, ALLEGRO_ALIGN_RIGHT, buf);
     }
 
     draw_button(WIN_W/2-160, WIN_H-60, 140, 40, "Play Again");
@@ -519,13 +551,13 @@ bool Graphic_Manager::results_menu_click(int x, int y) const {
 // ── Global Stats (Plan B placeholder) ────────────────────────────────────────
 void Graphic_Manager::render_global_stats() {
     clear_full();
-    al_draw_text(font_ui_, COL_WHITE, WIN_W/2, 60,
+    draw_text_s(font_ui_, COL_WHITE, WIN_W/2, 60,
                  ALLEGRO_ALIGN_CENTRE, "Global Stats");
-    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 160,
+    draw_text_s(font_ui_, COL_DIM, WIN_W/2, 160,
                  ALLEGRO_ALIGN_CENTRE, "Coming soon — Plan B.");
-    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 200,
+    draw_text_s(font_ui_, COL_DIM, WIN_W/2, 200,
                  ALLEGRO_ALIGN_CENTRE, "Keyboard heatmap, bigrams, WPM trends,");
-    al_draw_text(font_ui_, COL_DIM, WIN_W/2, 230,
+    draw_text_s(font_ui_, COL_DIM, WIN_W/2, 230,
                  ALLEGRO_ALIGN_CENTRE, "badges, lifetime totals and more.");
     draw_button(WIN_W/2-70, WIN_H-80, 140, 44, "Back");
     draw_window_chrome();
