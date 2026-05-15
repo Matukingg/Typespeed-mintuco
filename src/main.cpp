@@ -335,7 +335,17 @@ int main() {
             }
 
             if (phase == Phase::PLAYING) {
-                if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
+                if (ev.keyboard.keycode == ALLEGRO_KEY_LEFT) {
+                    game.on_left();
+                    int remaining = (sel_mode == RoundMode::TimeLimit)
+                        ? std::max(0,(int)(time_limit_sec - elapsed_sec)) : -1;
+                    gfx.render_playing(game, elapsed_sec, remaining, live_wpm, cursor_vis);
+                } else if (ev.keyboard.keycode == ALLEGRO_KEY_RIGHT) {
+                    game.on_right();
+                    int remaining = (sel_mode == RoundMode::TimeLimit)
+                        ? std::max(0,(int)(time_limit_sec - elapsed_sec)) : -1;
+                    gfx.render_playing(game, elapsed_sec, remaining, live_wpm, cursor_vis);
+                } else if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
                     al_stop_timer(timer);
                     last_result = game.finish(
                         TextBank::category_folder(sel_cat),

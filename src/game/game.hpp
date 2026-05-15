@@ -6,28 +6,39 @@
 enum class ErrorMode { Strict, Lenient };
 enum class RoundMode { Paragraph, TimeLimit, WordCount, Endless };
 
-// Status of each display slot in the passage
 struct CharState {
-    char ch;     // expected character (or typed extra char if extra_)
-    bool extra_; // true = this slot is an extra typed char beyond the passage
+    std::string utf8; // the character as a UTF-8 string (1-4 bytes)
+    int32_t     codepoint; // Unicode codepoint for comparison
+    bool        extra_;    // true = extra typed char beyond passage
     enum class Status { Neutral, Correct, Wrong } status = Status::Neutral;
-    CharState(char c, bool extra = false)
-        : ch(c), extra_(extra), status(Status::Neutral) {}
+
+    CharState(const std::string& u, int32_t cp, bool extra = false)
+        : utf8(u), codepoint(cp), extra_(extra), status(Status::Neutral) {}
 };
+
+// Decode first UTF-8 codepoint from str starting at pos.
+// Returns codepoint and advances pos past it.
+int32_t utf8_decode(const std::string& str, size_t& pos);
+
+// Encode a codepoint to UTF-8 string
+std::string utf8_encode(int32_t cp);
 
 class Game {
 public:
     void start(const std::string& passage, RoundMode mode, ErrorMode emode,
                int time_limit_sec = 60, int word_target = 50);
 
-    bool on_key(int unichar);
+    // unichar = Unicode codepoint from Allegro KEY_CHAR event
+    bool on_key(int32_t unichar);
     bool on_backspace();
+    bool on_left();   // move cursor left (for bracket workflow)
+    bool on_right();  // move cursor right
 
     void tick_sample(double elapsed_sec);
 
     bool is_finished() const;
     bool is_strict()   const { return emode_ == ErrorMode::Strict; }
-    bool has_errors()  const; // true if any wrong/extra chars exist before cursor
+    bool has_errors()  const;
 
     const std::vector<CharState>& char_states() const { return chars_; }
     int cursor_pos()    const { return cursor_; }
@@ -43,9 +54,9 @@ public:
     void reset();
 
 private:
-    std::vector<CharState> chars_;   // passage chars + any extra typed chars
-    int         passage_len_ = 0;    // length of original passage (no extras)
-    int         cursor_      = 0;    // current display position
+    std::vector<CharState> chars_;
+    int         passage_len_ = 0;
+    int         cursor_      = 0;
     RoundMode   mode_        = RoundMode::Paragraph;
     ErrorMode   emode_       = ErrorMode::Strict;
     int         time_limit_sec_ = 60;

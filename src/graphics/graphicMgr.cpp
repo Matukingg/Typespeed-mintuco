@@ -460,22 +460,28 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
 
         if (i == (int)chars.size()) break;
 
-        char c = chars[(size_t)i].ch;
+        const auto& cs = chars[(size_t)i];
         ALLEGRO_COLOR col;
-        switch (chars[(size_t)i].status) {
+        switch (cs.status) {
             case CharState::Status::Correct: col = COL_CORRECT; break;
             case CharState::Status::Wrong:   col = COL_WRONG;   break;
             default:                         col = COL_TEXT;    break;
         }
 
-        if (c == '\n') {
+        if (cs.codepoint == '\n' || cs.codepoint == '\r') {
             cx = x;
             cy += fh + 4;
             continue;
         }
 
-        char buf[2] = {c, 0};
-        draw_text_s(font_mono_, col, cx, cy, 0, buf);
+        // Whitespace chars: advance cursor position but don't draw visible glyph
+        if (cs.codepoint == 9) { // tab — advance by 4 char widths
+            cx += fw * 4.0f;
+            if (cx + fw > x + max_w) { cx = x; cy += fh + 4; }
+            continue;
+        }
+
+        draw_text_s(font_mono_, col, cx, cy, 0, cs.utf8.c_str());
         cx += fw;
 
         if (cx + fw > x + max_w) { cx = x; cy += fh + 4; }
