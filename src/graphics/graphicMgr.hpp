@@ -33,6 +33,7 @@ public:
     // ── File pick ─────────────────────────────────────────────────────────────
     void render_file_pick(const std::vector<FileInfo>& files, int scroll_offset);
     int  file_click(int x, int y, int scroll_offset) const;
+    bool file_back_click(int x, int y)        const;
     bool file_scroll_up_click(int x, int y)   const;
     bool file_scroll_down_click(int x, int y) const;
 
@@ -102,5 +103,5 @@ private:
     void draw_button(float x, float y, float w, float h,
                      const std::string& label, bool highlighted = false);
     void draw_passage(const Game& game, float x, float y,
-                      float max_w, bool cursor_visible);
+                      float max_w, float area_h, bool cursor_visible);
 };

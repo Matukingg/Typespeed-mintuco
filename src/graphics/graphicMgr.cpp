@@ -259,12 +259,15 @@ void Graphic_Manager::render_category(Category current) {
                     120.0f + (float)i*(MENU_BTN_H + MENU_BTN_GAP),
                     MENU_BTN_W, MENU_BTN_H, CAT_LABELS[i], hi);
     }
+    draw_button(20, WIN_H - 56, 100, 36, "Back");
     draw_window_chrome();
     al_flip_display();
 }
 
 int Graphic_Manager::category_click(int x, int y) const {
     float fx = (float)x, fy = (float)y;
+    // Back button = -2
+    if (fx >= 20 && fx <= 120 && fy >= WIN_H-56 && fy <= WIN_H-20) return -2;
     for (int i = 0; i < 7; i++) {
         float bx = MENU_BTN_X, by = 120.0f + (float)i*(MENU_BTN_H + MENU_BTN_GAP);
         if (fx >= bx && fx <= bx+MENU_BTN_W && fy >= by && fy <= by+MENU_BTN_H) return i;
@@ -300,6 +303,7 @@ void Graphic_Manager::render_file_pick(const std::vector<FileInfo>& files,
                      ALLEGRO_ALIGN_RIGHT, meta);
     }
 
+    draw_button(20, WIN_H-56, 100, 36, "Back");
     if (scroll_offset > 0)
         draw_button(WIN_W/2-60, WIN_H-70, 120, 34, "^ Up");
     if (scroll_offset + FILES_VISIBLE < (int)files.size())
@@ -319,6 +323,9 @@ int Graphic_Manager::file_click(int x, int y, int scroll_offset) const {
     return -1;
 }
 
+bool Graphic_Manager::file_back_click(int x, int y) const {
+    return (float)x >= 20 && (float)x <= 120 && (float)y >= WIN_H-56 && (float)y <= WIN_H-20;
+}
 bool Graphic_Manager::file_scroll_up_click(int x, int y) const {
     return x >= WIN_W/2-60 && x <= WIN_W/2+60 && y >= WIN_H-70 && y <= WIN_H-36;
 }
@@ -443,20 +450,49 @@ bool Graphic_Manager::jump_cancel_click(int x, int y) const {
 }
 
 // ── Playing ───────────────────────────────────────────────────────────────────
+// Compute the line number (0-based) that character index `target` falls on,
+// given the layout parameters. Also returns total line count.
+static void compute_line_of(const std::vector<CharState>& chars,
+                              float x, float max_w, float fw,
+                              int target, int& out_line, int& out_total_lines) {
+    float cx = x;
+    int line = 0;
+    for (int i = 0; i < (int)chars.size(); i++) {
+        if (i == target) out_line = line;
+        int32_t cp = chars[(size_t)i].codepoint;
+        if (cp == '\n' || cp == '\r') { cx = x; line++; continue; }
+        if (cp == 9) {
+            cx += fw * 4.0f;
+            if (cx + fw > x + max_w) { cx = x; line++; }
+            continue;
+        }
+        cx += fw;
+        if (cx + fw > x + max_w) { cx = x; line++; }
+    }
+    if (target >= (int)chars.size()) out_line = line;
+    out_total_lines = line + 1;
+}
+
 void Graphic_Manager::draw_passage(const Game& game, float x, float y,
-                                    float max_w, bool cursor_visible) {
+                                    float max_w, float area_h, bool cursor_visible) {
     const auto& chars = game.char_states();
     int cursor = game.cursor_pos();
-    // Physical pixel sizes → game-space by dividing by scale
     float fh = (float)al_get_font_line_height(font_mono_) / transform_scale_;
     float fw = (float)al_get_text_width(font_mono_, "M")  / transform_scale_;
+    float line_h = fh + 4.0f;
 
-    float cx = x, cy = y;
+    // Find which line the cursor is on
+    int cursor_line = 0, total_lines = 1;
+    compute_line_of(chars, x, max_w, fw, cursor, cursor_line, total_lines);
+
+    // Offset y so cursor line stays vertically centred in the available area
+    float centre_y = y + area_h / 2.0f - fh / 2.0f;
+    float start_y  = centre_y - (float)cursor_line * line_h;
+
+    float cx = x, cy = start_y;
     for (int i = 0; i <= (int)chars.size(); i++) {
-        // Draw cursor before this position
         if (i == cursor && cursor_visible)
             al_draw_filled_rectangle(cx, cy, cx + 2.0f, cy + fh, COL_CURSOR);
-
 
         if (i == (int)chars.size()) break;
 
@@ -469,22 +505,20 @@ void Graphic_Manager::draw_passage(const Game& game, float x, float y,
         }
 
         if (cs.codepoint == '\n' || cs.codepoint == '\r') {
-            cx = x;
-            cy += fh + 4;
-            continue;
+            cx = x; cy += line_h; continue;
         }
-
-        // Whitespace chars: advance cursor position but don't draw visible glyph
-        if (cs.codepoint == 9) { // tab — advance by 4 char widths
+        if (cs.codepoint == 9) {
             cx += fw * 4.0f;
-            if (cx + fw > x + max_w) { cx = x; cy += fh + 4; }
+            if (cx + fw > x + max_w) { cx = x; cy += line_h; }
             continue;
         }
 
-        draw_text_s(font_mono_, col, cx, cy, 0, cs.utf8.c_str());
-        cx += fw;
+        // Only draw chars that are visible in the area (clip above/below)
+        if (cy + fh > y - line_h && cy < y + area_h + line_h)
+            draw_text_s(font_mono_, col, cx, cy, 0, cs.utf8.c_str());
 
-        if (cx + fw > x + max_w) { cx = x; cy += fh + 4; }
+        cx += fw;
+        if (cx + fw > x + max_w) { cx = x; cy += line_h; }
     }
 }
 
@@ -493,7 +527,8 @@ void Graphic_Manager::render_playing(const Game& game, double elapsed_sec,
                                       bool cursor_visible) {
     clear_full();
     draw_toolbar(elapsed_sec, live_wpm, time_remaining_sec);
-    draw_passage(game, 60, TOOLBAR_H + 30, WIN_W - 120, cursor_visible);
+    float passage_area_h = WIN_H - TOOLBAR_H - 30;
+    draw_passage(game, 60, TOOLBAR_H + 30, WIN_W - 120, passage_area_h, cursor_visible);
     draw_window_chrome();
     al_flip_display();
 }

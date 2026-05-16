@@ -162,7 +162,10 @@ int main() {
 
             } else if (phase == Phase::CATEGORY) {
                 int c = gfx.category_click(mx, my);
-                if (c >= 0) {
+                if (c == -2) {
+                    phase = Phase::MENU;
+                    gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
+                } else if (c >= 0) {
                     sel_cat = (Category)c;
                     core.set_int("cat_idx", c); core.save_settings();
                     bank.scan(sel_cat);
@@ -172,7 +175,10 @@ int main() {
                 }
 
             } else if (phase == Phase::FILE_PICK) {
-                if (gfx.file_scroll_up_click(mx, my)) {
+                if (gfx.file_back_click(mx, my)) {
+                    phase = Phase::CATEGORY;
+                    gfx.render_category(sel_cat);
+                } else if (gfx.file_scroll_up_click(mx, my)) {
                     if (file_scroll > 0) file_scroll--;
                     gfx.render_file_pick(bank.files(), file_scroll);
                 } else if (gfx.file_scroll_down_click(mx, my)) {

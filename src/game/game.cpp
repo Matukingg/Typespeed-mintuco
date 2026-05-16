@@ -103,27 +103,49 @@ bool Game::on_key(int32_t unichar) {
     // ── Cursor is on a passage character ─────────────────────────────────────
     int32_t expected = chars_[(size_t)cursor_].codepoint;
 
-    // Rule 1: whitespace flexibility — space and tab both match any whitespace
-    bool correct = (is_ws(unichar) && is_ws(expected)) || (unichar == expected);
+    // Rule 1: space typed — always skip ALL consecutive whitespace in the passage,
+    // landing cursor on the first non-whitespace character (word-jump behaviour).
+    if (is_ws(unichar)) {
+        if (is_ws(expected)) {
+            // Mark all consecutive whitespace chars as correct and jump past them
+            while (cursor_ < passage_len_
+                   && !chars_[(size_t)cursor_].extra_
+                   && is_ws(chars_[(size_t)cursor_].codepoint)) {
+                chars_[(size_t)cursor_].status = CharState::Status::Correct;
+                stats_.record_correct();
+                cursor_++;
+            }
+            advance_past_newlines();
+        } else {
+            // Space where a non-space is expected — error
+            chars_.insert(chars_.begin() + cursor_,
+                          CharState(utf8_encode(unichar), unichar, true));
+            chars_[(size_t)cursor_].status = CharState::Status::Wrong;
+            stats_.record_error();
+            cursor_++;
+        }
+        return true;
+    }
 
-    // Rule 2: space-skip — if typed char is NOT whitespace and expected IS whitespace,
-    // look past all whitespace to see if the typed char matches what's beyond.
-    // This lets you type "n+1" when the passage says "n + 1".
-    if (!correct && !is_ws(unichar) && is_ws(expected)) {
+    // Rule 2: non-whitespace char — exact match, or skip leading whitespace if present
+    bool correct = (unichar == expected);
+
+    // Rule 3: space-skip — non-whitespace typed, but passage has whitespace here.
+    // Look past all whitespace to see if the typed char matches beyond.
+    // Lets you type "n+1" when the passage says "n + 1".
+    if (!correct && is_ws(expected)) {
         int look = cursor_;
         while (look < passage_len_ && is_ws(chars_[(size_t)look].codepoint)
                && !chars_[(size_t)look].extra_)
             look++;
         if (look < passage_len_ && unichar == chars_[(size_t)look].codepoint
             && !chars_[(size_t)look].extra_) {
-            // Silently mark skipped whitespace as correct, then type the char
             while (cursor_ < look) {
                 chars_[(size_t)cursor_].status = CharState::Status::Correct;
                 stats_.record_correct();
                 cursor_++;
             }
             correct = true;
-            // fall through to correct-handling below
         }
     }
 
