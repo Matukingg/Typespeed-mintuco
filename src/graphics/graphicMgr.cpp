@@ -677,32 +677,18 @@ void Graphic_Manager::draw_keyboard_heatmap(
             : al_map_rgba_f(1,1,1,0.10f);
         al_draw_rounded_rectangle(x1, y1, x2, y2, R, R, border, 1.0f);
 
-        // Key label (centred vertically when no avg line, shifted up when avg shown)
+        // Key label — centred in the key, no avg-ms inside (scale bar handles that)
         ALLEGRO_COLOR txt_col = t > 0.55f
-            ? al_map_rgb_f(0.05f, 0.05f, 0.05f)  // dark text on bright keys
+            ? al_map_rgb_f(0.05f, 0.05f, 0.05f)
             : COL_WHITE;
-
-        bool has_avg = (it != ks.end() && it->second.count > 0);
-        float label_y = has_avg
-            ? y1 + 2.0f
-            : y1 + (U - GAP - fh) * 0.5f;
+        float label_y = y1 + (U - GAP - fh) * 0.5f;
         draw_text_s(font_ui_, txt_col, cx, label_y, ALLEGRO_ALIGN_CENTRE, label);
-
-        // Avg ms in a smaller dim line beneath the label
-        if (has_avg) {
-            char avg_buf[12];
-            std::snprintf(avg_buf, sizeof(avg_buf), "%.0f",
-                          it->second.total_ms / it->second.count);
-            ALLEGRO_COLOR dim = t > 0.55f
-                ? al_map_rgba_f(0,0,0,0.6f)
-                : al_map_rgba_f(1,1,1,0.45f);
-            draw_text_s(font_ui_, dim, cx, label_y + fh, ALLEGRO_ALIGN_CENTRE, avg_buf);
-        }
     };
 
-    // Standard QWERTY stagger in pixels (each unit = U+GAP)
+    // Standard QWERTY stagger — row 1 (QWERTY) is reference at 0.
+    // Number row is flush-left (slight offset left), rows 2/3 step right.
     float step = U + GAP;
-    float stagger[] = { 0.0f, step*0.5f, step*0.75f, step*1.25f };
+    float stagger[] = { 0.0f, step*0.5f, step*0.75f + step*0.25f, step*0.75f + step*0.75f };
 
     auto draw_row = [&](const Key* keys, int n, int row) {
         float kx = ox + stagger[row];
@@ -743,43 +729,39 @@ void Graphic_Manager::draw_keyboard_heatmap(
     int   segs   = 120;
     float seg_h  = bar_h / segs;
 
-    // Draw gradient segments top→bottom (t goes 0→1)
+    // Draw gradient segments: hot (slow) at top, cold (fast) at bottom
+    // t=1 at top, t=0 at bottom — so slow keys are visually "high"
     for (int i = 0; i < segs; i++) {
-        float t = (float)i / (segs - 1);
+        float t = 1.0f - (float)i / (segs - 1); // flip: top=hot, bottom=cold
         al_draw_filled_rectangle(bar_x, bar_y + i * seg_h,
                                  bar_x + bar_w, bar_y + (i+1) * seg_h,
                                  heat_color(t));
     }
-    // Thin border around the bar
     al_draw_rectangle(bar_x, bar_y, bar_x + bar_w, bar_y + bar_h,
                       al_map_rgba_f(1,1,1,0.15f), 1.0f);
 
-    // Tick marks + ms labels at 0%, 25%, 50%, 75%, 100%
+    // Tick marks + ms labels: 0ms at bottom, max_avg_ms at top
     float tick_x  = bar_x + bar_w + 3.0f;
     float label_x = bar_x + bar_w + 6.0f;
     for (int i = 0; i <= 4; i++) {
-        float frac = (float)i / 4.0f;
-        float ty2  = bar_y + frac * bar_h;
-        // tick
+        float frac  = (float)i / 4.0f;           // 0=bottom, 1=top
+        float ty2   = bar_y + bar_h - frac * bar_h; // pixel position
+        double ms_val = frac * max_avg_ms;
+
         al_draw_line(bar_x + bar_w, ty2, tick_x, ty2,
                      al_map_rgba_f(1,1,1,0.35f), 1.0f);
-        // label — ms value at this fraction
+
         char ms_buf[16];
-        double ms_val = frac * max_avg_ms;
-        if (ms_val < 10.0)
-            std::snprintf(ms_buf, sizeof(ms_buf), "%.0f ms", ms_val);
-        else
-            std::snprintf(ms_buf, sizeof(ms_buf), "%.0f ms", ms_val);
-        // vertical align: top label hangs below tick, bottom hangs above
+        std::snprintf(ms_buf, sizeof(ms_buf), "%.0f ms", ms_val);
         float label_y2 = ty2 - fh * 0.5f;
         draw_text_s(font_ui_, COL_DIM, label_x, label_y2, 0, ms_buf);
     }
 
-    // "fast" / "slow" captions outside the ticks
-    draw_text_s(font_ui_, al_map_rgba_f(0.5f,0.8f,0.9f,0.8f),
-                label_x + 28.0f, bar_y - fh - 1.0f, 0, "fast");
-    draw_text_s(font_ui_, al_map_rgba_f(0.95f,0.5f,0.1f,0.8f),
-                label_x + 28.0f, bar_y + bar_h + 1.0f, 0, "slow");
+    // Captions: "slow" at top (hot), "fast" at bottom (cold)
+    draw_text_s(font_ui_, al_map_rgba_f(0.95f,0.4f,0.1f,0.9f),
+                label_x, bar_y - fh - 2.0f, 0, "slow");
+    draw_text_s(font_ui_, al_map_rgba_f(0.4f,0.8f,0.95f,0.9f),
+                label_x, bar_y + bar_h + 2.0f, 0, "fast");
 }
 
 // ── WPM bar chart ─────────────────────────────────────────────────────────────
