@@ -5,6 +5,7 @@
 #include <allegro5/allegro_primitives.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include "textbank.hpp"
 #include "game.hpp"
 #include "stats.hpp"
@@ -104,4 +105,8 @@ private:
                      const std::string& label, bool highlighted = false);
     void draw_passage(const Game& game, float x, float y,
                       float max_w, float area_h, bool cursor_visible);
+    void draw_keyboard_heatmap(float ox, float oy,
+                               const std::unordered_map<int32_t,KeyStat>& ks);
+    void draw_wpm_chart(float ox, float oy, float w, float h,
+                        const std::vector<SessionResult>& history);
 };

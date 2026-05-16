@@ -84,7 +84,7 @@ void Game::mark_correct_at(int idx) {
     stats_.record_correct();
 }
 
-bool Game::on_key(int32_t unichar) {
+bool Game::on_key(int32_t unichar, double now_ms) {
     // Accept: tab (9), space (32), printable (33+). Reject other control chars.
     if (unichar < 9)                    return false;
     if (unichar > 9 && unichar < 32)    return false;
@@ -152,6 +152,7 @@ bool Game::on_key(int32_t unichar) {
     if (correct) {
         chars_[(size_t)cursor_].status = CharState::Status::Correct;
         stats_.record_correct();
+        stats_.record_key(unichar, now_ms);
         cursor_++;
         advance_past_newlines();
 

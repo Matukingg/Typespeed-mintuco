@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include "stats.hpp"
 
 enum class ErrorMode { Strict, Lenient };
@@ -29,7 +30,8 @@ public:
                int time_limit_sec = 60, int word_target = 50);
 
     // unichar = Unicode codepoint from Allegro KEY_CHAR event
-    bool on_key(int32_t unichar);
+    // now_ms  = al_get_time()*1000 at the moment of the event
+    bool on_key(int32_t unichar, double now_ms = -1.0);
     bool on_backspace();
     bool on_left();   // move cursor left (for bracket workflow)
     bool on_right();  // move cursor right
@@ -47,6 +49,8 @@ public:
     RoundMode round_mode() const { return mode_; }
 
     double live_wpm(double elapsed_sec) const;
+
+    const std::unordered_map<int32_t,KeyStat>& key_stats() const { return stats_.key_stats(); }
 
     SessionResult finish(const std::string& category,
                          const std::string& filename,

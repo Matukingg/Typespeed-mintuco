@@ -110,6 +110,7 @@ int main() {
                         current_file.filename,
                         (int)(elapsed_sec * 1000));
                     Stats::append_history(last_result);
+                    Stats::append_keylog(game.key_stats());
                     phase = Phase::RESULTS;
                     gfx.render_results(last_result);
                     continue;
@@ -355,6 +356,7 @@ int main() {
                         current_file.filename,
                         (int)(elapsed_sec * 1000));
                     Stats::append_history(last_result);
+                    Stats::append_keylog(game.key_stats());
                     phase = Phase::RESULTS;
                     gfx.render_results(last_result);
 
@@ -365,9 +367,10 @@ int main() {
                     gfx.render_playing(game, elapsed_sec, remaining, live_wpm, cursor_vis);
 
                 } else if (ev.keyboard.unichar == 9 || ev.keyboard.unichar >= 32) {
+                    double now = al_get_time();
                     if (start_time <= 0.0)
-                        start_time = al_get_time(); // start clock on first keypress
-                    game.on_key(ev.keyboard.unichar);
+                        start_time = now; // start clock on first keypress
+                    game.on_key(ev.keyboard.unichar, now * 1000.0);
                     live_wpm = game.live_wpm(elapsed_sec);
 
                     if (game.is_finished()) {
@@ -395,6 +398,7 @@ int main() {
                                 current_file.filename,
                                 (int)(elapsed_sec * 1000));
                             Stats::append_history(last_result);
+                            Stats::append_keylog(game.key_stats());
                             phase = Phase::RESULTS;
                             gfx.render_results(last_result);
                         }
