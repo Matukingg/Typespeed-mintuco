@@ -47,6 +47,7 @@ public:
     bool preview_skip_click    (int x, int y) const;
     bool preview_restart_click (int x, int y) const;
     bool preview_jump_click    (int x, int y) const;
+    bool preview_next_click    (int x, int y) const;
 
     // ── Jump overlay ──────────────────────────────────────────────────────────
     void render_jump_overlay(int current_para, int total_para,
@@ -81,6 +82,8 @@ public:
     // Must be called after every render to draw the window chrome overlay
     void draw_window_chrome();
 
+    void set_caps_lock(bool on) { caps_lock_ = on; }
+
     void screen_to_game(int sx, int sy, int& gx, int& gy) const {
         gx = (int)(((float)sx - transform_ox_) / transform_scale_);
         gy = (int)(((float)sy - transform_oy_) / transform_scale_);
@@ -93,6 +96,7 @@ private:
     bool             font_ui_builtin_  = false;
     bool             font_mono_builtin_= false;
     bool             fullscreen_       = false;
+    bool             caps_lock_        = false;
     float            transform_ox_     = 0.0f;
     float            transform_oy_     = 0.0f;
     float            transform_scale_  = 1.0f;

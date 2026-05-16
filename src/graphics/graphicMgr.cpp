@@ -140,7 +140,16 @@ void Graphic_Manager::toggle_maximized() {
 }
 
 void Graphic_Manager::draw_window_chrome() {
-    // No-op — background is drawn full-display by clear_full(), no bars needed.
+    // Caps lock indicator — bottom-right dot, always drawn
+    float cx = WIN_W - 14.0f, cy = WIN_H - 14.0f, r = 5.0f;
+    ALLEGRO_COLOR col = caps_lock_
+        ? al_map_rgb_f(1.0f, 0.85f, 0.1f)   // bright amber when on
+        : al_map_rgb_f(0.25f, 0.25f, 0.28f); // dim when off
+    al_draw_filled_circle(cx, cy, r, col);
+    al_draw_circle(cx, cy, r, COL_DIM, 1.0f);
+    if (caps_lock_)
+        draw_text_s(font_ui_, al_map_rgb_f(1.0f,0.85f,0.1f),
+                    WIN_W - 60.0f, WIN_H - 23.0f, 0, "CAPS");
 }
 
 bool Graphic_Manager::maximize_btn_click(int x, int y) const {
@@ -348,14 +357,15 @@ void Graphic_Manager::render_preview(const FileInfo& fi, Category cat,
 
     // Prose-only navigation row
     if (TextBank::is_prose(cat) && total_para > 0) {
-        float bw = 130.0f, bh = 36.0f, gap = 10.0f;
-        float total_w = 4*bw + 3*gap;
+        float bw = 104.0f, bh = 36.0f, gap = 10.0f;
+        float total_w = 5*bw + 4*gap;
         float bx = ((float)WIN_W - total_w) / 2.0f;
         float by = 290.0f;
         draw_button(bx,            by, bw, bh, "Redo Last");
         draw_button(bx+bw+gap,     by, bw, bh, "Skip");
         draw_button(bx+2*(bw+gap), by, bw, bh, "Restart");
         draw_button(bx+3*(bw+gap), by, bw, bh, "Jump To...");
+        draw_button(bx+4*(bw+gap), by, bw, bh, "Next >>", true);
     }
 
     draw_window_chrome();
@@ -374,13 +384,13 @@ static bool in_rect(float fx, float fy, float bx, float by, float bw, float bh) 
     return fx >= bx && fx <= bx+bw && fy >= by && fy <= by+bh;
 }
 
-static constexpr float PREV_BTN_W   = 130.0f;
+static constexpr float PREV_BTN_W   = 104.0f;
 static constexpr float PREV_BTN_H   =  36.0f;
 static constexpr float PREV_BTN_GAP =  10.0f;
 static constexpr float PREV_BTN_Y   = 290.0f;
 
 static float prev_nav_x(int idx) {
-    float total_w = 4*PREV_BTN_W + 3*PREV_BTN_GAP;
+    float total_w = 5*PREV_BTN_W + 4*PREV_BTN_GAP;
     float bx = ((float)Graphic_Manager::WIN_W - total_w) / 2.0f;
     return bx + (float)idx * (PREV_BTN_W + PREV_BTN_GAP);
 }
@@ -396,6 +406,9 @@ bool Graphic_Manager::preview_restart_click(int x, int y) const {
 }
 bool Graphic_Manager::preview_jump_click(int x, int y) const {
     return in_rect((float)x, (float)y, prev_nav_x(3), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
+}
+bool Graphic_Manager::preview_next_click(int x, int y) const {
+    return in_rect((float)x, (float)y, prev_nav_x(4), PREV_BTN_Y, PREV_BTN_W, PREV_BTN_H);
 }
 
 // ── Jump overlay ─────────────────────────────────────────────────────────────

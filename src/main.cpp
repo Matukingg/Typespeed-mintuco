@@ -236,6 +236,10 @@ int main() {
                         jump_input.clear();
                         phase = Phase::JUMP;
                         gfx.render_jump_overlay(cp, tp, jump_input);
+                    } else if (gfx.preview_next_click(mx, my)) {
+                        bank.skip_paragraph(current_file, tp);
+                        cp = bank.current_paragraph(current_file);
+                        gfx.render_preview(current_file, sel_cat, cp, tp);
                     }
                 }
 
@@ -286,6 +290,7 @@ int main() {
 
         // ── Keyboard ──────────────────────────────────────────────────────────
         if (ev.type == ALLEGRO_EVENT_KEY_CHAR) {
+            gfx.set_caps_lock(!!(ev.keyboard.modifiers & ALLEGRO_KEYMOD_CAPSLOCK));
 
             // Menu: < / > adjust time limit / word target
             if (phase == Phase::MENU) {
