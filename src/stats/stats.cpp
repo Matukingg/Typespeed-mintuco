@@ -6,14 +6,17 @@ void Stats::record_correct() { correct_chars_++; total_chars_++; }
 void Stats::record_error()   { error_count_++;   total_chars_++; }
 
 void Stats::record_key(int32_t codepoint, double now_ms) {
+    if (now_ms < 0.0) return; // no timestamp — skip entirely, don't corrupt chain
     if (last_key_time_ms_ >= 0.0) {
         double interval = now_ms - last_key_time_ms_;
-        if (interval > 0.0 && interval < 3000.0) { // ignore long pauses
+        if (interval > 0.0 && interval < 3000.0) {
             auto& ks = key_stats_[codepoint];
             ks.codepoint = codepoint;
             ks.count++;
             ks.total_ms += interval;
         }
+        // Always advance the timestamp so the next interval is measured from
+        // now, not from a stale point before a long pause.
     }
     last_key_time_ms_ = now_ms;
 }

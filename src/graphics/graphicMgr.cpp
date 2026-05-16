@@ -67,13 +67,9 @@ void Graphic_Manager::update_transform() {
 }
 
 void Graphic_Manager::reload_fonts() {
-    // Destroy old fonts safely
-    if (font_ui_   && font_ui_   != al_create_builtin_font()) { al_destroy_font(font_ui_);   font_ui_   = nullptr; }
-    if (font_mono_ && font_mono_ != al_create_builtin_font()) { al_destroy_font(font_mono_); font_mono_ = nullptr; }
+    if (font_ui_)   { if (!font_ui_builtin_)   al_destroy_font(font_ui_);   font_ui_   = nullptr; }
+    if (font_mono_) { if (!font_mono_builtin_)  al_destroy_font(font_mono_); font_mono_ = nullptr; }
 
-    // Rasterize at physical pixel size so glyphs are sharp.
-    // Text is drawn in screen space (identity transform) with coords
-    // manually converted via transform_ox_/oy_/scale_.
     int ui_px   = std::max(8, (int)(18.0f * transform_scale_));
     int mono_px = std::max(8, (int)(16.0f * transform_scale_));
 
@@ -81,15 +77,15 @@ void Graphic_Manager::reload_fonts() {
     if (!font_ui_)
         font_ui_ = al_load_ttf_font(
             "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf", ui_px, 0);
-    if (!font_ui_)
-        font_ui_ = al_create_builtin_font();
+    if (!font_ui_) { font_ui_ = al_create_builtin_font(); font_ui_builtin_ = true; }
+    else             font_ui_builtin_ = false;
 
     font_mono_ = al_load_ttf_font("data/mono.ttf", mono_px, 0);
     if (!font_mono_)
         font_mono_ = al_load_ttf_font(
             "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", mono_px, 0);
-    if (!font_mono_)
-        font_mono_ = al_create_builtin_font();
+    if (!font_mono_) { font_mono_ = al_create_builtin_font(); font_mono_builtin_ = true; }
+    else               font_mono_builtin_ = false;
 }
 
 // Draw text in screen space (bypasses scale transform so font is sharp).
@@ -154,8 +150,8 @@ bool Graphic_Manager::maximize_btn_click(int x, int y) const {
 }
 
 Graphic_Manager::~Graphic_Manager() {
-    al_destroy_font(font_ui_);
-    al_destroy_font(font_mono_);
+    if (font_ui_   && !font_ui_builtin_)   al_destroy_font(font_ui_);
+    if (font_mono_ && !font_mono_builtin_)  al_destroy_font(font_mono_);
     al_destroy_display(display_);
 }
 

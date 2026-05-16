@@ -88,8 +88,10 @@ public:
 
 private:
     ALLEGRO_DISPLAY* display_;
-    ALLEGRO_FONT*    font_ui_;
-    ALLEGRO_FONT*    font_mono_;
+    ALLEGRO_FONT*    font_ui_          = nullptr;
+    ALLEGRO_FONT*    font_mono_        = nullptr;
+    bool             font_ui_builtin_  = false;
+    bool             font_mono_builtin_= false;
     bool             fullscreen_       = false;
     float            transform_ox_     = 0.0f;
     float            transform_oy_     = 0.0f;

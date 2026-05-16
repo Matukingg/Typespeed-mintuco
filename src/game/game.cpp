@@ -116,6 +116,7 @@ bool Game::on_key(int32_t unichar, double now_ms) {
                 cursor_++;
             }
             advance_past_newlines();
+            stats_.record_key(unichar, now_ms); // record the space keypress
         } else {
             // Space where a non-space is expected — error
             chars_.insert(chars_.begin() + cursor_,
@@ -152,7 +153,7 @@ bool Game::on_key(int32_t unichar, double now_ms) {
     if (correct) {
         chars_[(size_t)cursor_].status = CharState::Status::Correct;
         stats_.record_correct();
-        stats_.record_key(unichar, now_ms);
+        stats_.record_key(unichar, now_ms); // covers exact match and space-skip path
         cursor_++;
         advance_past_newlines();
 
