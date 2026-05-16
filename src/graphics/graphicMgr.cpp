@@ -220,9 +220,6 @@ void Graphic_Manager::render_menu(RoundMode current_mode, ErrorMode current_emod
     if (hint[0])
         draw_text_s(font_ui_, COL_DIM, WIN_W/2, ey + 46, ALLEGRO_ALIGN_CENTRE, hint);
 
-    // Start button — clicking any mode button goes to category; this is a shortcut
-    draw_button(MENU_BTN_X, ey + 80, MENU_BTN_W, 44, "Start", true);
-
     // Global Stats
     draw_button(WIN_W - 160, WIN_H - 60, 140, 36, "Global Stats");
 
@@ -239,8 +236,6 @@ int Graphic_Manager::menu_click(int x, int y) const {
     float ey = MENU_START_Y + 4*(MENU_BTN_H + MENU_BTN_GAP) + 10;
     if (fx >= MENU_BTN_X && fx <= MENU_BTN_X+140 && fy >= ey && fy <= ey+36) return 10;
     if (fx >= MENU_BTN_X+160 && fx <= MENU_BTN_X+300 && fy >= ey && fy <= ey+36) return 11;
-    float sy = ey + 80;
-    if (fx >= MENU_BTN_X && fx <= MENU_BTN_X+MENU_BTN_W && fy >= sy && fy <= sy+44) return 30;
     if (fx >= (float)(WIN_W-160) && fx <= (float)(WIN_W-20) && fy >= (float)(WIN_H-60) && fy <= (float)(WIN_H-24)) return 20;
     return -1;
 }

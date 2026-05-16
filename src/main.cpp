@@ -142,7 +142,8 @@ int main() {
                     sel_mode = (RoundMode)btn;
                     core.set_int("mode_idx", btn);
                     core.save_settings();
-                    gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
+                    phase = Phase::CATEGORY;
+                    gfx.render_category(sel_cat);
                 } else if (btn == 10) {
                     sel_emode = ErrorMode::Strict;
                     core.set_bool("strict", true); core.save_settings();
@@ -151,10 +152,6 @@ int main() {
                     sel_emode = ErrorMode::Lenient;
                     core.set_bool("strict", false); core.save_settings();
                     gfx.render_menu(sel_mode, sel_emode, time_limit_sec, word_target);
-                } else if (btn == 30) {
-                    // Start button → go to category
-                    phase = Phase::CATEGORY;
-                    gfx.render_category(sel_cat);
                 } else if (btn == 20) {
                     phase = Phase::GLOBAL_STATS;
                     gfx.render_global_stats();
