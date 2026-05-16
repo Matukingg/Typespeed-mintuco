@@ -723,20 +723,63 @@ void Graphic_Manager::draw_keyboard_heatmap(
     float space_w = 5.0f * step;
     draw_key(space_x, oy + 4 * step, space_w, 32, "space");
 
-    // Legend: cold → hot gradient strip + labels
-    float leg_x = ox, leg_y = oy + 5 * step + 4.0f;
-    float leg_w = 13 * step, leg_h = 7.0f;
-    int steps = 80;
-    float sw = leg_w / steps;
-    for (int i = 0; i < steps; i++) {
-        float t = (float)i / (steps - 1);
-        al_draw_filled_rectangle(leg_x + i*sw, leg_y,
-                                 leg_x + (i+1)*sw, leg_y + leg_h,
+    // ── Vertical colour bar on the right ─────────────────────────────────────
+    // Maps colour → actual ms value so the reader can decode any key's speed.
+    // t=0 (cold/fast) at top, t=1 (hot/slow) at bottom.
+
+    // Find max avg ms across all keys to label the axis
+    double max_avg_ms = 0.0;
+    for (auto& [cp, k] : ks)
+        if (k.count > 0) {
+            double avg = k.total_ms / k.count;
+            if (avg > max_avg_ms) max_avg_ms = avg;
+        }
+    if (max_avg_ms < 1.0) max_avg_ms = 500.0; // fallback when no data
+
+    float bar_x  = ox + 13 * step + 10.0f; // just right of the keyboard
+    float bar_y  = oy;
+    float bar_h  = 5 * step;               // full keyboard height
+    float bar_w  = 10.0f;
+    int   segs   = 120;
+    float seg_h  = bar_h / segs;
+
+    // Draw gradient segments top→bottom (t goes 0→1)
+    for (int i = 0; i < segs; i++) {
+        float t = (float)i / (segs - 1);
+        al_draw_filled_rectangle(bar_x, bar_y + i * seg_h,
+                                 bar_x + bar_w, bar_y + (i+1) * seg_h,
                                  heat_color(t));
     }
-    draw_text_s(font_ui_, COL_DIM, leg_x,           leg_y + leg_h + 2, 0,                    "rare");
-    draw_text_s(font_ui_, COL_DIM, leg_x + leg_w/2, leg_y + leg_h + 2, ALLEGRO_ALIGN_CENTRE, "frequency");
-    draw_text_s(font_ui_, COL_DIM, leg_x + leg_w,   leg_y + leg_h + 2, ALLEGRO_ALIGN_RIGHT,  "common");
+    // Thin border around the bar
+    al_draw_rectangle(bar_x, bar_y, bar_x + bar_w, bar_y + bar_h,
+                      al_map_rgba_f(1,1,1,0.15f), 1.0f);
+
+    // Tick marks + ms labels at 0%, 25%, 50%, 75%, 100%
+    float tick_x  = bar_x + bar_w + 3.0f;
+    float label_x = bar_x + bar_w + 6.0f;
+    for (int i = 0; i <= 4; i++) {
+        float frac = (float)i / 4.0f;
+        float ty2  = bar_y + frac * bar_h;
+        // tick
+        al_draw_line(bar_x + bar_w, ty2, tick_x, ty2,
+                     al_map_rgba_f(1,1,1,0.35f), 1.0f);
+        // label — ms value at this fraction
+        char ms_buf[16];
+        double ms_val = frac * max_avg_ms;
+        if (ms_val < 10.0)
+            std::snprintf(ms_buf, sizeof(ms_buf), "%.0f ms", ms_val);
+        else
+            std::snprintf(ms_buf, sizeof(ms_buf), "%.0f ms", ms_val);
+        // vertical align: top label hangs below tick, bottom hangs above
+        float label_y2 = ty2 - fh * 0.5f;
+        draw_text_s(font_ui_, COL_DIM, label_x, label_y2, 0, ms_buf);
+    }
+
+    // "fast" / "slow" captions outside the ticks
+    draw_text_s(font_ui_, al_map_rgba_f(0.5f,0.8f,0.9f,0.8f),
+                label_x + 28.0f, bar_y - fh - 1.0f, 0, "fast");
+    draw_text_s(font_ui_, al_map_rgba_f(0.95f,0.5f,0.1f,0.8f),
+                label_x + 28.0f, bar_y + bar_h + 1.0f, 0, "slow");
 }
 
 // ── WPM bar chart ─────────────────────────────────────────────────────────────
