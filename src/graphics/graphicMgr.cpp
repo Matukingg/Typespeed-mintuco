@@ -593,17 +593,14 @@ bool Graphic_Manager::results_menu_click(int x, int y) const {
     return x >= WIN_W/2+20 && x <= WIN_W/2+160 && y >= WIN_H-60 && y <= WIN_H-20;
 }
 
-// ── Global Stats (Plan B placeholder) ────────────────────────────────────────
 // ── Keyboard heatmap ─────────────────────────────────────────────────────────
-// Draws a QWERTY heatmap. Each key is coloured by press frequency.
 void Graphic_Manager::draw_keyboard_heatmap(
         float ox, float oy,
         const std::unordered_map<int32_t,KeyStat>& ks) {
 
-    // QWERTY layout rows: each entry is {label, codepoint}
-    struct Key { const char* label; int32_t cp; float w; }; // w=1 is one unit
+    struct Key { const char* label; int32_t cp; };
     static const Key ROW0[] = {
-        {"`",96},{"-1",49},{"2",50},{"3",51},{"4",52},{"5",53},
+        {"`",96},{"1",49},{"2",50},{"3",51},{"4",52},{"5",53},
         {"6",54},{"7",55},{"8",56},{"9",57},{"0",48},{"-",45},{"=",61}
     };
     static const Key ROW1[] = {
@@ -619,79 +616,127 @@ void Graphic_Manager::draw_keyboard_heatmap(
         {"m",109},{",",44},{".",46},{"/",47}
     };
 
-    // find max count for normalisation
     int max_count = 1;
     for (auto& [cp, k] : ks) if (k.count > max_count) max_count = k.count;
 
-    float unit = 36.0f;   // key width/height
-    float gap  =  4.0f;
+    // Key dimensions — sized to fit 13 keys + stagger across ~840px
+    static constexpr float U   = 30.0f; // key cell size (square)
+    static constexpr float GAP =  3.0f; // gap between keys
+    static constexpr float R   =  4.0f; // corner radius
 
-    auto draw_key = [&](float kx, float ky, float kw, int32_t cp, const char* label) {
+    float fh = (float)al_get_font_line_height(font_ui_) / transform_scale_;
+
+    // Heat colour: near-black → deep indigo → teal → amber
+    // Uses a perceptually smoother ramp than the old blue→cyan→yellow→red
+    auto heat_color = [](float t) -> ALLEGRO_COLOR {
+        t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+        float r, g, b;
+        if (t < 0.25f) {
+            // black → deep indigo
+            float u = t / 0.25f;
+            r = u * 0.20f; g = 0.0f; b = u * 0.45f;
+        } else if (t < 0.55f) {
+            // deep indigo → teal
+            float u = (t - 0.25f) / 0.30f;
+            r = 0.20f - u * 0.10f; g = u * 0.65f; b = 0.45f + u * 0.25f;
+        } else if (t < 0.80f) {
+            // teal → amber
+            float u = (t - 0.55f) / 0.25f;
+            r = 0.10f + u * 0.85f; g = 0.65f + u * 0.20f; b = 0.70f - u * 0.70f;
+        } else {
+            // amber → warm red
+            float u = (t - 0.80f) / 0.20f;
+            r = 0.95f; g = 0.85f - u * 0.65f; b = 0.0f;
+        }
+        return al_map_rgb_f(r, g, b);
+    };
+
+    auto draw_key = [&](float kx, float ky, float kw, int32_t cp,
+                        const char* label) {
         auto it = ks.find(cp);
         float t = (it != ks.end()) ? (float)it->second.count / (float)max_count : 0.0f;
-        // heat: dark blue → cyan → yellow → red
-        float r, g, b;
-        if (t < 0.33f) {
-            float u = t / 0.33f;
-            r = 0.05f; g = u * 0.6f; b = 0.3f + u * 0.7f;
-        } else if (t < 0.66f) {
-            float u = (t - 0.33f) / 0.33f;
-            r = u * 0.9f; g = 0.6f + u * 0.3f; b = 1.0f - u;
-        } else {
-            float u = (t - 0.66f) / 0.34f;
-            r = 0.9f; g = 0.9f - u * 0.7f; b = 0.0f;
-        }
-        ALLEGRO_COLOR fill = al_map_rgb_f(r, g, b);
-        float x2 = kx + kw - gap, y2 = ky + unit - gap;
-        al_draw_filled_rounded_rectangle(kx, ky, x2, y2, 4, 4, fill);
-        al_draw_rounded_rectangle(kx, ky, x2, y2, 4, 4, COL_DIM, 1.0f);
 
-        // avg ms label under key label if we have data
-        char avg_buf[16] = "";
-        if (it != ks.end() && it->second.count > 0)
+        float x1 = kx, y1 = ky, x2 = kx + kw - GAP, y2 = ky + U - GAP;
+        float cx = (x1 + x2) * 0.5f;
+
+        // Shadow strip (1 px offset, slightly darker)
+        al_draw_filled_rounded_rectangle(x1+1, y1+1, x2+1, y2+1, R, R,
+                                         al_map_rgba_f(0,0,0,0.45f));
+
+        // Key face
+        ALLEGRO_COLOR fill = heat_color(t);
+        al_draw_filled_rounded_rectangle(x1, y1, x2, y2, R, R, fill);
+
+        // Subtle top-edge highlight to give a slight 3-D lift
+        ALLEGRO_COLOR hi = al_map_rgba_f(1,1,1, t < 0.1f ? 0.12f : 0.06f);
+        al_draw_filled_rounded_rectangle(x1, y1, x2, y1 + (U-GAP)*0.35f, R, R, hi);
+
+        // Border — brighter on hot keys
+        ALLEGRO_COLOR border = t > 0.5f
+            ? al_map_rgba_f(1,1,1,0.25f)
+            : al_map_rgba_f(1,1,1,0.10f);
+        al_draw_rounded_rectangle(x1, y1, x2, y2, R, R, border, 1.0f);
+
+        // Key label (centred vertically when no avg line, shifted up when avg shown)
+        ALLEGRO_COLOR txt_col = t > 0.55f
+            ? al_map_rgb_f(0.05f, 0.05f, 0.05f)  // dark text on bright keys
+            : COL_WHITE;
+
+        bool has_avg = (it != ks.end() && it->second.count > 0);
+        float label_y = has_avg
+            ? y1 + 2.0f
+            : y1 + (U - GAP - fh) * 0.5f;
+        draw_text_s(font_ui_, txt_col, cx, label_y, ALLEGRO_ALIGN_CENTRE, label);
+
+        // Avg ms in a smaller dim line beneath the label
+        if (has_avg) {
+            char avg_buf[12];
             std::snprintf(avg_buf, sizeof(avg_buf), "%.0f",
                           it->second.total_ms / it->second.count);
-
-        float cx = kx + kw/2.0f - gap/2.0f;
-        float fh = (float)al_get_font_line_height(font_ui_) / transform_scale_;
-        draw_text_s(font_ui_, COL_WHITE, cx, ky + 4.0f,
-                    ALLEGRO_ALIGN_CENTRE, label);
-        if (avg_buf[0])
-            draw_text_s(font_ui_, COL_DIM, cx, ky + 4.0f + fh,
-                        ALLEGRO_ALIGN_CENTRE, avg_buf);
-    };
-
-    // Row offsets (standard stagger)
-    float row_offsets[] = {0.0f, 0.5f*unit, 0.75f*unit, 1.25f*unit};
-
-    auto draw_row = [&](const Key* keys, int n, float row_y, float stagger) {
-        float kx = ox + stagger;
-        for (int i = 0; i < n; i++) {
-            float kw = (unit + gap) * keys[i].w;
-            draw_key(kx, row_y, kw, keys[i].cp, keys[i].label);
-            kx += kw;
+            ALLEGRO_COLOR dim = t > 0.55f
+                ? al_map_rgba_f(0,0,0,0.6f)
+                : al_map_rgba_f(1,1,1,0.45f);
+            draw_text_s(font_ui_, dim, cx, label_y + fh, ALLEGRO_ALIGN_CENTRE, avg_buf);
         }
     };
 
-    // fix w=1 for all static keys (they were declared without .w initialised in C++ — set them)
-    // We just call draw_row with unit width per key
-    auto draw_row_uniform = [&](const Key* keys, int n, float row_y, float stagger) {
-        float kx = ox + stagger;
+    // Standard QWERTY stagger in pixels (each unit = U+GAP)
+    float step = U + GAP;
+    float stagger[] = { 0.0f, step*0.5f, step*0.75f, step*1.25f };
+
+    auto draw_row = [&](const Key* keys, int n, int row) {
+        float kx = ox + stagger[row];
+        float ky = oy + (float)row * step;
         for (int i = 0; i < n; i++) {
-            draw_key(kx, row_y, unit + gap, keys[i].cp, keys[i].label);
-            kx += unit + gap;
+            draw_key(kx, ky, step, keys[i].cp, keys[i].label);
+            kx += step;
         }
     };
-    (void)draw_row; // suppress unused warning
 
-    draw_row_uniform(ROW0, 13, oy + 0*(unit+gap), row_offsets[0]);
-    draw_row_uniform(ROW1, 13, oy + 1*(unit+gap), row_offsets[1]);
-    draw_row_uniform(ROW2, 11, oy + 2*(unit+gap), row_offsets[2]);
-    draw_row_uniform(ROW3, 10, oy + 3*(unit+gap), row_offsets[3]);
+    draw_row(ROW0, 13, 0);
+    draw_row(ROW1, 13, 1);
+    draw_row(ROW2, 11, 2);
+    draw_row(ROW3, 10, 3);
 
-    // Space bar
-    float space_w = 7.0f * (unit + gap);
-    draw_key(ox + 3.5f*(unit+gap), oy + 4*(unit+gap), space_w, 32, "space");
+    // Space bar — 5 units wide, centred under the B/N area
+    float space_x = ox + stagger[3] + 2.5f * step;
+    float space_w = 5.0f * step;
+    draw_key(space_x, oy + 4 * step, space_w, 32, "space");
+
+    // Legend: cold → hot gradient strip + labels
+    float leg_x = ox, leg_y = oy + 5 * step + 4.0f;
+    float leg_w = 13 * step, leg_h = 7.0f;
+    int steps = 80;
+    float sw = leg_w / steps;
+    for (int i = 0; i < steps; i++) {
+        float t = (float)i / (steps - 1);
+        al_draw_filled_rectangle(leg_x + i*sw, leg_y,
+                                 leg_x + (i+1)*sw, leg_y + leg_h,
+                                 heat_color(t));
+    }
+    draw_text_s(font_ui_, COL_DIM, leg_x,           leg_y + leg_h + 2, 0,                    "rare");
+    draw_text_s(font_ui_, COL_DIM, leg_x + leg_w/2, leg_y + leg_h + 2, ALLEGRO_ALIGN_CENTRE, "frequency");
+    draw_text_s(font_ui_, COL_DIM, leg_x + leg_w,   leg_y + leg_h + 2, ALLEGRO_ALIGN_RIGHT,  "common");
 }
 
 // ── WPM bar chart ─────────────────────────────────────────────────────────────
@@ -778,10 +823,13 @@ void Graphic_Manager::render_global_stats() {
     draw_wpm_chart(40.0f, chart_y, WIN_W - 80.0f, chart_h, history);
 
     // ── Keyboard heatmap ──────────────────────────────────────────────────────
-    float heat_y = chart_y + chart_h + 14.0f;
+    // 13 keys × (30+3)px = 429px wide; centre in WIN_W=900
+    static constexpr float HEAT_W = 13.0f * 33.0f;
+    float heat_ox = (WIN_W - HEAT_W) * 0.5f;
+    float heat_y  = chart_y + chart_h + 10.0f;
     draw_text_s(font_ui_, COL_DIM, WIN_W/2, heat_y, ALLEGRO_ALIGN_CENTRE,
-                "Key frequency heatmap  (number = avg ms between keypresses)");
-    draw_keyboard_heatmap(28.0f, heat_y + fh + 6.0f, keylog);
+                "key frequency  |  number = avg ms between presses");
+    draw_keyboard_heatmap(heat_ox, heat_y + fh + 4.0f, keylog);
 
     draw_button(WIN_W/2-70, WIN_H-52, 140, 36, "Back");
     draw_window_chrome();
